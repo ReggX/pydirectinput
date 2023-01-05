@@ -7,7 +7,6 @@ from __future__ import annotations
 
 # native imports
 import functools
-import inspect
 import sys
 import time
 from collections.abc import Generator, Sequence
