@@ -7,6 +7,7 @@ from __future__ import annotations
 
 # native imports
 import functools
+import inspect
 import sys
 import time
 from collections.abc import Generator, Sequence
@@ -1750,9 +1751,16 @@ def _genericPyDirectInputChecks(
     '''
     @functools.wraps(wrappedFunction)
     def wrapper(*args: _PS.args, **kwargs: _PS.kwargs) -> _RT:
+        if '_pause' in kwargs:
+            _pause = kwargs['_pause']
+        else:
+            funcArgs: dict[str, Any] = (
+                inspect.getcallargs(wrappedFunction, *args, **kwargs)
+            )
+           _pause = funcArgs.get("_pause")
         _failSafeCheck()
         returnVal: _RT = wrappedFunction(*args, **kwargs)
-        _handlePause(kwargs['_pause'] if '_pause' in kwargs else None)
+        _handlePause(_pause)
         return returnVal
     return wrapper
 # ------------------------------------------------------------------------------
