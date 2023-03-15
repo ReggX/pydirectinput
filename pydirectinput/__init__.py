@@ -2109,10 +2109,8 @@ def restore_mouse_acceleration_settings() -> None:
     th1: int
     th2: int
     th1, th2, _ = _get_mouse_parameters()
-    if precision is not None:
-        _set_mouse_parameters(th1, th2, precision)
-    if speed is not None:
-        _set_mouse_speed(speed)
+    _set_mouse_parameters(th1, th2, precision)
+    _set_mouse_speed(speed)
 # ------------------------------------------------------------------------------
 
 
