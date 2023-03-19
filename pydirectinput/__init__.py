@@ -1400,7 +1400,7 @@ class ScancodeSequence(_list[int]):
 
 
 # ----- TypeAlias for KEYBOARD_MAPPING values ----------------------------------
-ScancodeTypes: TypeAlias = "int | ScancodeSequence"
+ScancodeTypes: TypeAlias = "int | ScancodeSequence"  # TODO 3.10: remove quotes
 '''
 Acceptable value types in KEYBOARD_MAPPING.
 
