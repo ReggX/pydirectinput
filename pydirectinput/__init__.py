@@ -114,11 +114,16 @@ Default pause interval in seconds if _pause argument isn't set to False.
 '''
 MINIMUM_SLEEP_IDEAL: float = 1e-6
 '''
-Extremely small timer interval greater than 0 that still generates
+Extremely small timer interval greater than 0 that still causes the system to
+sleep. This is the ideal value, the system may not be able to sleep for this
+short of a time. See `MINIMUM_SLEEP_ACTUAL` and `calibrate_real_sleep_minimum`.
 '''
 MINIMUM_SLEEP_ACTUAL: float = 0.002
 '''
 Actual time spent on sleeping with MINIMUM_SLEEP_IDEAL, rounded up for safety.
+Determined ahead of time by `calibrate_real_sleep_minimum`. The `MINIMUM_SLEEP_`
+values may differ between systems. If you're unsure, run the calibration
+and correct this value after importing the module.
 '''
 # ------------------------------------------------------------------------------
 
@@ -539,7 +544,7 @@ def update_MOUSEEVENT_mappings() -> None:
     constants.
 
     This function MUST be called every time one of the `MOUSE_*` constants
-    is been changed!
+    has been changed!
     '''
     _MOUSE_MAPPING_EVENTF.update({
         MOUSE_LEFT: _MOUSEEVENTF_LEFT,
