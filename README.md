@@ -1,5 +1,9 @@
 # pydirectinput_rgx
 
+Simple docstring-based documentation available here: https://reggx.github.io/pydirectinput_rgx/
+
+---
+
 This library is a fork of https://github.com/learncodebygaming/pydirectinput 1.0.4
 
 This package extends PyDirectInput in multiple ways. It fixes some bugs, adds the remaining missing input functions that still required using PyAutoGUI and provides additional keyword-only arguments to give more precise control over function behavior.
@@ -22,6 +26,9 @@ For more information, see the original README at https://github.com/learncodebyg
 ## Installation
 
 `pip install pydirectinput-rgx`
+
+Alternatively, you can manually download the wheels from PyPI:
+https://pypi.org/project/pydirectinput-rgx/
 
 ## Provided functions with same/similar signature to PyAutoGui:
 
@@ -101,5 +108,5 @@ ___
 
 
 ___
-See the [pydirectinput's original README](OLD_README.md).
+See [pydirectinput's original README](OLD_README.md).
 ___
