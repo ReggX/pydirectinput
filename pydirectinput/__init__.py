@@ -4182,5 +4182,8 @@ def unicode_hotkey(
 
 # ------------------------------------------------------------------------------
 # Save current Enhanced Pointer Precsion setting during import
-store_mouse_acceleration_settings()
+# unless disabled by environment variable.
+# Since this is a safety feature, this import side-effect is enabled by default.
+if not os.environ.get("PYDIRECTINPUT_SKIP_STORING_MOUSE_SETTINGS"):
+    store_mouse_acceleration_settings()
 # ------------------------------------------------------------------------------
