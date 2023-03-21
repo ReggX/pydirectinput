@@ -30,6 +30,87 @@ For more information, see the original README at https://github.com/learncodebyg
 Alternatively, you can manually download the wheels from PyPI:
 https://pypi.org/project/pydirectinput-rgx/
 
+## Example Usage
+
+```python
+import pydirectinput
+
+pydirectinput.moveTo(100, 150) # Move the mouse to the x, y coordinates 100, 150.
+
+pydirectinput.click() # Click the mouse at its current location.
+
+pydirectinput.click(button=pydirectinput.MOUSE_PRIMARY) # Click the mouse at its current location using the primary mouse button (will detect swapped mouse buttons and press accordingly).
+
+pydirectinput.rightClick(200, 220) # Right-click the mouse at the x, y coordinates 200, 220.
+
+pydirectinput.moveRel(None, 10)  # Move mouse 10 pixels down, that is, move the mouse relative to its current position.
+
+pydirectinput.doubleClick() # Double click the mouse at the current location.
+
+pydirectinput.moveTo(500, 500, duration=2) # Move mouse over 2 seconds.
+
+pydirectinput.moveTo(1000, 250, attempt_pixel_perfect=True) # Sometimes Windows will not move the mouse to the exact pixel you specify. If you set attempt_pixel_perfect to True, PyDirectInput will attempt to move the mouse to the exact pixel you specify.
+
+pydirectinput.moveRel(yOffset=-100, disable_mouse_acceleration=True) # Move mouse 100 pixels up, disable mouse acceleration for this move. Mouse acceleration is messing with your mouse movements, so the library can disable it for you and restore your own settings after the movement is finished.
+
+pydirectinput.dragTo(100, 200, button='left') # Drag mouse to the x, y coordinates 100, 200 while holding down the left mouse button.
+
+pydirectinput.dragRel(0, 10) # Drag mouse 10 pixels down, that is, drag mouse relative to its current position.
+
+pydirectinput.scroll(10) # Scroll mouse 10 "clicks" up, that is, move the mouse wheel up.
+
+pydirectinput.hscroll(10) # Scroll mouse 10 "clicks" to the right, that is, move the mouse wheel to the right. Support for this scolling method is very limited in most applications.
+
+pydirectinput.keyDown('alt') # Simulate pressing dwon the Alt key.
+
+pydirectinput.keyUp('alt') # Simulate releasing the Alt key.
+
+pydirectinput.press('A', auto_shift=True) # Simulate pressing the A key, automatically holding down the Shift key if needed.
+
+pydirectinput.press(['a', 'b'], presses=2, interval=1.0, delay=0.5, duration=0.25) # Simulate pressing the A and B keys twice in succesion, with pauses in between:
+# A down
+# 0.25 seconds pause (duration of key press)
+# A up
+# 0.5 seconds pause (delay between key presses)
+# B down
+# 0.25 seconds pause
+# B up
+# 1.0 seconds pause (interval between key press sequences)
+# A down
+# 0.25 seconds pause
+# A up
+# 0.5 seconds pause
+# B down
+# 0.25 seconds pause
+# B up
+
+try:
+  with pydirectinput.hold('alt', raise_on_failure=True):
+      pydirectinput.press('tab') # Simulate pressing the Alt-Tab hotkey combination.
+except pydirectinput.PriorInputFailedException:
+  print('Prior input failed, so this input was not sent.')
+
+pydirectinput.hotkey('ctrl', 'v') # Simulate pressing the Ctrl-V hotkey combination.
+
+pydirectinput.typewrite('Hello world!', interval=0.25) # Simulate typing the string 'Hello world!' with a 0.25 second pause in between each key press.
+
+# By default, pydirectinput have an artifical pause after every action to make input look less robotic.
+# You can disable the pause on a per-function basis by passing in _pause=False, e.g
+pydirectinput.moveTo(100, 150, _pause=False)
+
+# The duration of the automatic pause is determinded by the PAUSE constant, which is 0.01 seconds by default, but can be adjusted to other values if desired.
+pydirectinput.PAUSE = 0.1 # Set the pause to 0.1 seconds.
+
+# You can also disable the pause globally by setting the PAUSE constant to None.
+pydirectinput.PAUSE = None # Disable the pause entirely.
+
+# You can also unicode_* variants of the keyboard functions to type unicode characters. Support may be limited in some applications.
+pydirectinput.unicode_press('👍')
+
+# On the other hand, if you already know the scancode of the key you want to press, you can use the scancode_* variants of the keyboard functions.
+pydirectinput.scancode_press(0x3B) # Press the F1 key.
+```
+
 ## Provided functions with same/similar signature to PyAutoGui:
 
 * Informational:

@@ -1,11 +1,11 @@
 import setuptools
 
-with open("README.md", "r") as fh:
+with open("README.md", "r", encoding='utf-8') as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="pydirectinput_rgx",
-    version="2.0.6",
+    version="2.0.7",
     author="ReggX",
     author_email="dev@reggx.eu",
     description=(
