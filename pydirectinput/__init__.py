@@ -108,10 +108,12 @@ FAILSAFE_POINTS: list[tuple[int, int]] = [(0, 0)]
 '''
 List of coordinates that trigger failafe exception. (default: top left corner)
 '''
-PAUSE: float = 0.01  # 1/100 second pause by default
+PAUSE: float | None = 0.01  # 1/100 second pause by default
 '''
 Default pause interval in seconds if _pause argument isn't set to False.
 1/100 second pause by default.
+
+Set to None to disable automatic pauses entirely.
 '''
 MINIMUM_SLEEP_IDEAL: float = 1e-6
 '''
@@ -1737,7 +1739,7 @@ def _handlePause(_pause: Any) -> None:
     '''
     Pause the default amount of time if `_pause=True` in function arguments.
     '''
-    if _pause:
+    if _pause and PAUSE:
         _sleep(PAUSE)
 # ------------------------------------------------------------------------------
 
@@ -1761,17 +1763,22 @@ def _genericPyDirectInputChecks(
     '''
     @functools.wraps(wrappedFunction)
     def wrapper(*args: _PS.args, **kwargs: _PS.kwargs) -> _RT:
-        _pause: Any
-        if '_pause' in kwargs:
-            _pause = kwargs['_pause']
+        returnVal: _RT
+        if PAUSE:  # Skip _pause checks if PAUSE has been globally disabled.
+            _pause: Any
+            if '_pause' in kwargs:  # Fast track, low cost lookup.
+                _pause = kwargs['_pause']
+            else:  # Slow track, inspect.getcallargs() is expensive.
+                funcArgs: dict[str, Any] = (
+                    inspect.getcallargs(wrappedFunction, *args, **kwargs)
+                )
+                _pause = funcArgs.get("_pause")
+            _failSafeCheck()
+            returnVal = wrappedFunction(*args, **kwargs)
+            _handlePause(_pause)
         else:
-            funcArgs: dict[str, Any] = (
-                inspect.getcallargs(wrappedFunction, *args, **kwargs)
-            )
-            _pause = funcArgs.get("_pause")
-        _failSafeCheck()
-        returnVal: _RT = wrappedFunction(*args, **kwargs)
-        _handlePause(_pause)
+            _failSafeCheck()
+            returnVal = wrappedFunction(*args, **kwargs)
         return returnVal
     return wrapper
 # ------------------------------------------------------------------------------
@@ -3592,7 +3599,8 @@ def press(
     Explanation of time parameters (seconds as floating point numbers):
 
     - `interval` is the time spent waiting between sequences. If `keys` is a
-    str instance or single element list, then `interval` will be ignored.
+    str instance, single element list or presses equals 1 (the default),
+    then `interval` will be ignored.
     - `delay` is the time from one complete key (press+release) to the next one
     in the same sequence. If there is only a single key in a sequence, then
     `delay` will be ignored.
