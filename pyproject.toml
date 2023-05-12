@@ -43,6 +43,9 @@ content-type = "text/markdown"
 [project.urls]
 Homepage = "https://github.com/reggx/pydirectinput_rgx"
 
+[tool.black]
+line-length = 80
+
 [tool.mypy]
 strict = true
 show_error_codes = true

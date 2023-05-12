@@ -1,7 +1,7 @@
-'''
+"""
 Partial implementation of DirectInput function calls to simulate
 mouse and keyboard inputs.
-'''
+"""
 
 from __future__ import annotations
 
@@ -14,15 +14,29 @@ import time
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from ctypes import (
-    POINTER, Array, Structure, Union, WinDLL, c_bool, c_int, c_long,
-    c_short, c_uint, c_ulong, c_ushort, c_void_p, pointer, sizeof, windll,
+    POINTER,
+    Array,
+    Structure,
+    Union,
+    WinDLL,
+    c_bool,
+    c_int,
+    c_long,
+    c_short,
+    c_uint,
+    c_ulong,
+    c_ushort,
+    c_void_p,
+    pointer,
+    sizeof,
+    windll,
 )
 from math import ceil, floor, log10
 from struct import unpack
 from threading import Lock
 
 # Windows-only
-if sys.platform != 'win32':
+if sys.platform != "win32":
     raise ImportError(
         "This module makes Windows API calls and is thereby only available "
         "on that plattform!"
@@ -50,6 +64,7 @@ if sys.version_info >= (3, 9):
     _list = list
 else:
     from typing import List
+
     _list = List
 
 # Python 3.10 or higher
@@ -72,16 +87,20 @@ if TYPE_CHECKING:
     # We have to get the private Pointer type from typeshed to make
     # the type checker shut up about the "incompatible types" error.
     from ctypes import _Pointer  # pyright: ignore[reportPrivateUsage]
+
     _POINTER_TYPE = _Pointer
 else:
+
     class __pointer:
-        '''
+        """
         Create pointer proxy class that translates square bracket notation
         __pointer[type] into POINTER(type).
-        '''
+        """
+
         @classmethod
         def __class_getitem__(cls, item):
             return POINTER(item)
+
     _POINTER_TYPE = __pointer
 # ------------------------------------------------------------------------------
 
@@ -100,56 +119,56 @@ _sleep: Callable[[float], None] = time.sleep
 # ----- "Constants" for failsafe check and pause -------------------------------
 # Intendend to be modified by callers
 FAILSAFE: bool = True
-'''
+"""
 Stop execution if mouse is moved into one of `FAILSAFE_POINTS`.
 Change to disable failsafe behaviour.
-'''
+"""
 FAILSAFE_POINTS: list[tuple[int, int]] = [(0, 0)]
-'''
+"""
 List of coordinates that trigger failafe exception. (default: top left corner)
-'''
+"""
 PAUSE: float | None = 0.01  # 1/100 second pause by default
-'''
+"""
 Default pause interval in seconds if _pause argument isn't set to False.
 1/100 second pause by default.
 
 Set to None to disable automatic pauses entirely.
-'''
+"""
 MINIMUM_SLEEP_IDEAL: float = 1e-6
-'''
+"""
 Extremely small timer interval greater than 0 that still causes the system to
 sleep. This is the ideal value, the system may not be able to sleep for this
 short of a time. See `MINIMUM_SLEEP_ACTUAL` and `calibrate_real_sleep_minimum`.
-'''
+"""
 MINIMUM_SLEEP_ACTUAL: float = 0.002
-'''
+"""
 Actual time spent on sleeping with MINIMUM_SLEEP_IDEAL, rounded up for safety.
 Determined ahead of time by `calibrate_real_sleep_minimum`. The `MINIMUM_SLEEP_`
 values may differ between systems. If you're unsure, run the calibration
 and correct this value after importing the module.
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
 # ----- Constants for the mouse button names -----------------------------------
 MOUSE_LEFT: str = "left"
-'''Name of left mouse button'''
+"""Name of left mouse button"""
 MOUSE_MIDDLE: str = "middle"
-'''Name of middle mouse button'''
+"""Name of middle mouse button"""
 MOUSE_RIGHT: str = "right"
-'''Name of right mouse button'''
+"""Name of right mouse button"""
 MOUSE_PRIMARY: str = "primary"
-'''Name of primary mouse button (left mouse button unless swapped)'''
+"""Name of primary mouse button (left mouse button unless swapped)"""
 MOUSE_SECONDARY: str = "secondary"
-'''Name of secondary mouse button (right mouse button unless swapped)'''
+"""Name of secondary mouse button (right mouse button unless swapped)"""
 MOUSE_BUTTON4: str = "mouse4"
-'''Name of first additional mouse button (usually a side button)'''
+"""Name of first additional mouse button (usually a side button)"""
 MOUSE_X1: str = "x1"
-'''Name of first additional mouse button (usually a side button)'''
+"""Name of first additional mouse button (usually a side button)"""
 MOUSE_BUTTON5: str = "mouse5"
-'''Name of second additional mouse button (usually a side button)'''
+"""Name of second additional mouse button (usually a side button)"""
 MOUSE_X2: str = "x2"
-'''Name of second additional mouse button (usually a side button)'''
+"""Name of second additional mouse button (usually a side button)"""
 # ------------------------------------------------------------------------------
 
 
@@ -157,13 +176,12 @@ MOUSE_X2: str = "x2"
 # ===== External setup functions ===============================================
 # ==============================================================================
 
+
 # ----- automatically measure minimum sleep time -------------------------------
 def calibrate_real_sleep_minimum(
-    runs: int = 10,
-    *,
-    verbose: bool = False
+    runs: int = 10, *, verbose: bool = False
 ) -> None:
-    '''
+    """
     Measure your system's minimum sleep duration and calibrate
     `MINIMUM_SLEEP_ACTUAL` accordingly.
 
@@ -172,10 +190,10 @@ def calibrate_real_sleep_minimum(
     and round it up to the next higher value in the same order of magnitude.
 
     Example: [0.001874, 0.001721, 0.001806] would round up to 0.002
-    '''
+    """
 
     def round_up_same_magnitude(x: float) -> float:
-        mag: float = 10**floor(log10(x))
+        mag: float = 10 ** floor(log10(x))
         return ceil(x / mag) * mag
 
     def stopwatch(duration: float) -> float:
@@ -187,9 +205,7 @@ def calibrate_real_sleep_minimum(
     if verbose:
         print("Calibrating real sleep minimum...")
 
-    measurements = [
-        stopwatch(MINIMUM_SLEEP_IDEAL) for _ in range(runs)
-    ]
+    measurements = [stopwatch(MINIMUM_SLEEP_IDEAL) for _ in range(runs)]
     if verbose:
         print(f"Real measurements: {measurements}")
 
@@ -209,7 +225,7 @@ def calibrate_real_sleep_minimum(
     MINIMUM_SLEEP_ACTUAL = (  # pyright: ignore[reportConstantRedefinition]
         new_sleep_minimum
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ==============================================================================
@@ -219,131 +235,131 @@ def calibrate_real_sleep_minimum(
 
 # ----- INPUT.type constants ---------------------------------------------------
 _INPUT_MOUSE: Final = 0x0000  # c_ulong(0x0000)
-'''The event is a mouse event. Use the mi structure of the union.'''
+"""The event is a mouse event. Use the mi structure of the union."""
 _INPUT_KEYBOARD: Final = 0x0001  # c_ulong(0x0001)
-'''The event is a keyboard event. Use the ki structure of the union.'''
+"""The event is a keyboard event. Use the ki structure of the union."""
 _INPUT_HARDWARE: Final = 0x0002  # c_ulong(0x0002)
-'''The event is a hardware event. Use the hi structure of the union.'''
+"""The event is a hardware event. Use the hi structure of the union."""
 # ------------------------------------------------------------------------------
 
 
 # ----- MOUSEINPUT.mouseData constants -----------------------------------------
 _XBUTTON1: Final = 0x0001  # c_ulong(0x0001)
-'''Set if the first X button is pressed or released.'''
+"""Set if the first X button is pressed or released."""
 _XBUTTON2: Final = 0x0002  # c_ulong(0x0002)
-'''Set if the second X button is pressed or released.'''
+"""Set if the second X button is pressed or released."""
 # ------------------------------------------------------------------------------
 
 
 # ----- MOUSEINPUT.dwFlags constants -------------------------------------------
 _MOUSEEVENTF_MOVE: Final = 0x0001  # c_ulong(0x0001)
-'''Movement occurred.'''
+"""Movement occurred."""
 
 _MOUSEEVENTF_LEFTDOWN: Final = 0x0002  # c_ulong(0x0002)
-'''The left button was pressed.'''
+"""The left button was pressed."""
 _MOUSEEVENTF_LEFTUP: Final = 0x0004  # c_ulong(0x0004)
-'''The left button was released.'''
+"""The left button was released."""
 _MOUSEEVENTF_LEFTCLICK: Final = (
     _MOUSEEVENTF_LEFTDOWN + _MOUSEEVENTF_LEFTUP  # c_ulong(0x0006)
 )
-'''Combined event: Left button was clicked.'''
+"""Combined event: Left button was clicked."""
 
 _MOUSEEVENTF_RIGHTDOWN: Final = 0x0008  # c_ulong(0x0008)
-'''The right button was pressed.'''
+"""The right button was pressed."""
 _MOUSEEVENTF_RIGHTUP: Final = 0x0010  # c_ulong(0x0010)
-'''The right button was released.'''
+"""The right button was released."""
 _MOUSEEVENTF_RIGHTCLICK: Final = (
     _MOUSEEVENTF_RIGHTDOWN + _MOUSEEVENTF_RIGHTUP  # c_ulong(0x0018)
 )
-'''Combined event: Right button was clicked.'''
+"""Combined event: Right button was clicked."""
 
 _MOUSEEVENTF_MIDDLEDOWN: Final = 0x0020  # c_ulong(0x0020)
-'''The middle button was pressed.'''
+"""The middle button was pressed."""
 _MOUSEEVENTF_MIDDLEUP: Final = 0x0040  # c_ulong(0x0040)
-'''The middle button was released.'''
+"""The middle button was released."""
 _MOUSEEVENTF_MIDDLECLICK: Final = (
     _MOUSEEVENTF_MIDDLEDOWN + _MOUSEEVENTF_MIDDLEUP  # c_ulong(0x0060)
 )
-'''Combined event: Middle button was clicked.'''
+"""Combined event: Middle button was clicked."""
 
 _MOUSEEVENTF_XDOWN: Final = 0x0080  # c_ulong(0x0080)
-'''An X button was pressed.'''
+"""An X button was pressed."""
 _MOUSEEVENTF_XUP: Final = 0x0100  # c_ulong(0x0100)
-'''An X button was released.'''
+"""An X button was released."""
 _MOUSEEVENTF_XCLICK: Final = (
     _MOUSEEVENTF_XDOWN + _MOUSEEVENTF_XUP  # c_ulong(0x0180)
 )
-'''Combined event: Side button was clicked.'''
+"""Combined event: Side button was clicked."""
 
 _MOUSEEVENTF_WHEEL: Final = 0x0800  # c_ulong(0x0800)
-'''
+"""
 The wheel was moved, if the mouse has a wheel.
 The amount of movement is specified in mouseData.
-'''
+"""
 _MOUSEEVENTF_HWHEEL: Final = 0x1000  # c_ulong(0x1000)
-'''
+"""
 The wheel was moved horizontally, if the mouse has a wheel. The amount of
 movement is specified in mouseData.
 Windows XP/2000: This value is not supported.
-'''
+"""
 
 _MOUSEEVENTF_MOVE_NOCOALESCE: Final = 0x2000  # c_ulong(0x2000)
-'''
+"""
 The WM_MOUSEMOVE messages will not be coalesced. The default behavior is to
 coalesce WM_MOUSEMOVE messages.
 Windows XP/2000: This value is not supported.
-'''
+"""
 _MOUSEEVENTF_VIRTUALDESK: Final = 0x4000  # c_ulong(0x4000)
-'''
+"""
 Maps coordinates to the entire desktop. Must be used with MOUSEEVENTF_ABSOLUTE.
-'''
+"""
 _MOUSEEVENTF_ABSOLUTE: Final = 0x8000  # c_ulong(0x8000)
-'''
+"""
 The dx and dy members contain normalized absolute coordinates. If the flag is
 not set, dx and dy contain relative data (the change in position since the last
 reported position). This flag can be set, or not set, regardless of what kind of
 mouse or other pointing device, if any, is connected to the system. For further
 information about relative mouse motion, see the following Remarks section.
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
 # ----- Scrolling distance -----------------------------------------------------
 _WHEEL_DELTA: Final = 120
-'''
+"""
 The delta was set to 120 to allow Microsoft or other vendors to build
 finer-resolution wheels (a freely-rotating wheel with no notches) to send more
 messages per rotation, but with a smaller value in each message.
 
 https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-mousewheel
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
 # ----- KEYBDINPUT.dwFlags Flags ------------------------------------------------
 _KEYEVENTF_EXTENDEDKEY: Final = 0x0001  # c_ulong(0x0001)
-'''
+"""
 If specified, the scan code was preceded by a prefix byte that has the value
 0xE0 (224).
-'''
+"""
 _KEYEVENTF_KEYUP: Final = 0x0002  # c_ulong(0x0002)
-'''
+"""
 If specified, the key is being released. If not specified, the key is being
 pressed.
-'''
+"""
 _KEYEVENTF_UNICODE: Final = 0x0004  # c_ulong(0x0004)
-'''
+"""
 If specified, the system synthesizes a VK_PACKET keystroke. The wVk parameter
 must be zero. This flag can only be combined with the KEYEVENTF_KEYUP flag.
 For more information, see the Remarks section.
-'''
+"""
 _KEYEVENTF_SCANCODE: Final = 0x0008  # c_ulong(0x0008)
-'''If specified, wScan identifies the key and wVk is ignored.'''
+"""If specified, wScan identifies the key and wVk is ignored."""
 # ------------------------------------------------------------------------------
 
 
 # ----- MOUSEINPUT Remarks -----------------------------------------------------
-'''
+"""
 https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput#remarks
 
 ----- Remarks -----
@@ -382,130 +398,130 @@ threshold test. It is thus possible for the system to multiply specified
 relative mouse movement along the x or y axis by up to four times.
 
 [1] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfoa
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
 # ----- MapVirtualKey Map Types ------------------------------------------------
 _MAPVK_VK_TO_VSC: Final = 0  # c_unit(0)
-'''
+"""
 The uCode parameter is a virtual-key code and is translated into a scan code.
 If it is a virtual-key code that does not distinguish between left- and
 right-hand keys, the left-hand scan code is returned.
 If there is no translation, the function returns 0.
-'''
+"""
 _MAPVK_VSC_TO_VK: Final = 1  # c_unit(1)
-'''
+"""
 The uCode parameter is a scan code and is translated into a virtual-key code
 that does not distinguish between left- and right-hand keys.
 If there is no translation, the function returns 0.
-'''
+"""
 _MAPVK_VK_TO_CHAR: Final = 2  # c_unit(2)
-'''
+"""
 The uCode parameter is a virtual-key code and is translated into an unshifted
 character value in the low order word of the return value. Dead keys
 (diacritics) are indicated by setting the top bit of the return value.
 If there is no translation, the function returns 0.
-'''
+"""
 _MAPVK_VSC_TO_VK_EX: Final = 3  # c_unit(3)
-'''
+"""
 The uCode parameter is a scan code and is translated into a virtual-key code
 that distinguishes between left- and right-hand keys.
 If there is no translation, the function returns 0.
-'''
+"""
 _MAPVK_VK_TO_VSC_EX: Final = 4  # c_unit(4)
-'''
+"""
 Windows Vista and later: The uCode parameter is a virtual-key code and is
 translated into a scan code. If it is a virtual-key code that does not
 distinguish between left- and right-hand keys, the left-hand scan code is
 returned. If the scan code is an extended scan code, the high byte of the uCode
 value can contain either 0xe0 or 0xe1 to specify the extended scan code.
 If there is no translation, the function returns 0.
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
 # ----- GetSystemMetrics nIndex arguments --------------------------------------
 _SM_CXSCREEN: Final = 0
-'''
+"""
 The width of the screen of the primary display monitor, in pixels. This is the
 same value obtained by calling GetDeviceCaps[1] as follows:
 `GetDeviceCaps(hdcPrimaryMonitor, HORZRES)`.
 
 [1] https://docs.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps
-'''
+"""
 _SM_CYSCREEN: Final = 1
-'''
+"""
 The height of the screen of the primary display monitor, in pixels. This is
 the same value obtained by calling GetDeviceCaps[1] as follows:
 `GetDeviceCaps(hdcPrimaryMonitor, VERTRES)`.
 
 [1] https://docs.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps
-'''
+"""
 _SM_SWAPBUTTON: Final = 23
-'''
+"""
 Nonzero if the meanings of the left and right mouse buttons are swapped;
 otherwise, 0.
-'''
+"""
 _SM_XVIRTUALSCREEN: Final = 76
-'''
+"""
 The coordinates for the left side of the virtual screen. The virtual screen is
 the bounding rectangle of all display monitors. The SM_CXVIRTUALSCREEN metric
 is the width of the virtual screen.
-'''
+"""
 _SM_YVIRTUALSCREEN: Final = 77
-'''
+"""
 The coordinates for the top of the virtual screen. The virtual screen is the
 bounding rectangle of all display monitors. The SM_CYVIRTUALSCREEN metric is
 the height of the virtual screen.
-'''
+"""
 _SM_CXVIRTUALSCREEN: Final = 78
-'''
+"""
 The width of the virtual screen, in pixels. The virtual screen is the bounding
 rectangle of all display monitors. The SM_XVIRTUALSCREEN metric is the
 coordinates for the left side of the virtual screen.
-'''
+"""
 _SM_CYVIRTUALSCREEN: Final = 79
-'''
+"""
 The height of the virtual screen, in pixels. The virtual screen is the bounding
 rectangle of all display monitors. The SM_YVIRTUALSCREEN metric is the
 coordinates for the top of the virtual screen.
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
 # ----- SystemParametersInfoW uiAction arguments -------------------------------
 _SPI_GETMOUSE: Final = 0x0003  # c_uint
-'''
+"""
 Retrieves the two mouse threshold values and the mouse acceleration. The
 pvParam parameter must point to an array of three integers that receives these
 values. See mouse_event[1] for further information.
 
 https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mouse_event
-'''
+"""
 _SPI_SETMOUSE: Final = 0x0004  # c_uint
-'''
+"""
 Sets the two mouse threshold values and the mouse acceleration. The pvParam
 parameter must point to an array of three integers that specifies these values.
 See mouse_event[1] for further information.
 
 https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mouse_event
-'''
+"""
 _SPI_GETMOUSESPEED: Final = 0x0070  # c_uint
-'''
+"""
 Retrieves the current mouse speed. The mouse speed determines how far the
 pointer will move based on the distance the mouse moves. The pvParam parameter
 must point to an integer that receives a value which ranges between 1 (slowest)
 and 20 (fastest). A value of 10 is the default. The value can be set by an
 end-user using the mouse control panel application or by an application using
 SPI_SETMOUSESPEED.
-'''
+"""
 _SPI_SETMOUSESPEED: Final = 0x0071  # c_uint
-'''
+"""
 Sets the current mouse speed. The pvParam parameter is an integer between
 1 (slowest) and 20 (fastest). A value of 10 is the default. This value is
 typically set using the mouse control panel application.
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
@@ -520,53 +536,57 @@ _MOUSE_CLICK: Final = 2
 _MOUSEEVENTF_LEFT: tuple[int, int, int] = (
     _MOUSEEVENTF_LEFTDOWN,
     _MOUSEEVENTF_LEFTUP,
-    _MOUSEEVENTF_LEFTCLICK
+    _MOUSEEVENTF_LEFTCLICK,
 )
 _MOUSEEVENTF_MIDDLE: tuple[int, int, int] = (
     _MOUSEEVENTF_MIDDLEDOWN,
     _MOUSEEVENTF_MIDDLEUP,
-    _MOUSEEVENTF_MIDDLECLICK
+    _MOUSEEVENTF_MIDDLECLICK,
 )
 _MOUSEEVENTF_RIGHT: tuple[int, int, int] = (
     _MOUSEEVENTF_RIGHTDOWN,
     _MOUSEEVENTF_RIGHTUP,
-    _MOUSEEVENTF_RIGHTCLICK
+    _MOUSEEVENTF_RIGHTCLICK,
 )
 _MOUSEEVENTF_X: tuple[int, int, int] = (
     _MOUSEEVENTF_XDOWN,
     _MOUSEEVENTF_XUP,
-    _MOUSEEVENTF_XCLICK
+    _MOUSEEVENTF_XCLICK,
 )
 _MOUSE_MAPPING_EVENTF: dict[str, tuple[int, int, int]] = {}
 _MOUSE_MAPPING_DATA: dict[str, int] = {}
 
 
 def update_MOUSEEVENT_mappings() -> None:
-    '''
+    """
     Update the MOUSEEVENT mappings if you change the name of the button name
     constants.
 
     This function MUST be called every time one of the `MOUSE_*` constants
     has been changed!
-    '''
-    _MOUSE_MAPPING_EVENTF.update({
-        MOUSE_LEFT: _MOUSEEVENTF_LEFT,
-        MOUSE_MIDDLE: _MOUSEEVENTF_MIDDLE,
-        MOUSE_RIGHT: _MOUSEEVENTF_RIGHT,
-        MOUSE_BUTTON4: _MOUSEEVENTF_X,
-        MOUSE_X1: _MOUSEEVENTF_X,
-        MOUSE_BUTTON5: _MOUSEEVENTF_X,
-        MOUSE_X2: _MOUSEEVENTF_X,
-    })
-    _MOUSE_MAPPING_DATA.update({
-        MOUSE_LEFT: 0,
-        MOUSE_MIDDLE: 0,
-        MOUSE_RIGHT: 0,
-        MOUSE_BUTTON4: _XBUTTON1,
-        MOUSE_X1: _XBUTTON1,
-        MOUSE_BUTTON5: _XBUTTON2,
-        MOUSE_X2: _XBUTTON2,
-    })
+    """
+    _MOUSE_MAPPING_EVENTF.update(
+        {
+            MOUSE_LEFT: _MOUSEEVENTF_LEFT,
+            MOUSE_MIDDLE: _MOUSEEVENTF_MIDDLE,
+            MOUSE_RIGHT: _MOUSEEVENTF_RIGHT,
+            MOUSE_BUTTON4: _MOUSEEVENTF_X,
+            MOUSE_X1: _MOUSEEVENTF_X,
+            MOUSE_BUTTON5: _MOUSEEVENTF_X,
+            MOUSE_X2: _MOUSEEVENTF_X,
+        }
+    )
+    _MOUSE_MAPPING_DATA.update(
+        {
+            MOUSE_LEFT: 0,
+            MOUSE_MIDDLE: 0,
+            MOUSE_RIGHT: 0,
+            MOUSE_BUTTON4: _XBUTTON1,
+            MOUSE_X1: _XBUTTON1,
+            MOUSE_BUTTON5: _XBUTTON2,
+            MOUSE_X2: _XBUTTON2,
+        }
+    )
 
 
 update_MOUSEEVENT_mappings()  # call the function on import to set mappings.
@@ -585,30 +605,31 @@ _PUL: _PUL_PyType = POINTER(c_ulong)
 
 # ----- MOUSEINPUT -------------------------------------------------------------
 class _MOUSEINPUT(Structure):
-    '''
+    """
     MOUSEINPUT structure (winuser.h)
 
     Contains information about a simulated mouse event.
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput
-    '''
+    """
+
     # Python side type hinting
     dx: int  # c_long
-    '''
+    """
     The absolute position of the mouse, or the amount of motion since the last
     mouse event was generated, depending on the value of the dwFlags member.
     Absolute data is specified as the x coordinate of the mouse; relative data
     is specified as the number of pixels moved.
-    '''
+    """
     dy: int  # c_long
-    '''
+    """
     The absolute position of the mouse, or the amount of motion since the last
     mouse event was generated, depending on the value of the dwFlags member.
     Absolute data is specified as the y coordinate of the mouse; relative data
     is specified as the number of pixels moved.
-    '''
+    """
     mouseData: int  # c_ulong
-    '''
+    """
     If dwFlags contains MOUSEEVENTF_WHEEL, then mouseData specifies the amount
     of wheel movement. A positive value indicates that the wheel was rotated
     forward, away from the user; a negative value indicates that the wheel was
@@ -627,9 +648,9 @@ class _MOUSEINPUT(Structure):
     If dwFlags contains MOUSEEVENTF_XDOWN or MOUSEEVENTF_XUP, then mouseData
     specifies which X buttons were pressed or released. This value may be any
     combination of the following flags. (See _XBUTTON* constants)
-    '''
+    """
     dwFlags: int  # c_ulong
-    '''
+    """
     A set of bit flags that specify various aspects of mouse motion and button
     clicks. The bits in this member can be any reasonable combination of the
     following values.
@@ -644,19 +665,19 @@ class _MOUSEINPUT(Structure):
     MOUSEEVENTF_XDOWN or MOUSEEVENTF_XUP flags simultaneously in the dwFlags
     parameter, because they both require use of the mouseData field.
     (See _MOUSEEVENTF_* constants)
-    '''
+    """
     time: int  # c_ulong
-    '''
+    """
     The time stamp for the event, in milliseconds. If this parameter is 0, the
     system will provide its own time stamp.
-    '''
+    """
     dwExtraInfo: _PUL_PyType
-    '''
+    """
     An additional value associated with the keystroke. Use the
     GetMessageExtraInfo[1] function to obtain this information.
 
     [1] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessageextrainfo
-    '''
+    """
     # ctypes side struct definition
     _fields_ = [
         ("dx", c_long),
@@ -664,113 +685,110 @@ class _MOUSEINPUT(Structure):
         ("mouseData", c_ulong),
         ("dwFlags", c_ulong),
         ("time", c_ulong),
-        ("dwExtraInfo", _PUL)
+        ("dwExtraInfo", _PUL),
     ]
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- KEYBDINPUT -------------------------------------------------------------
 class _KEYBDINPUT(Structure):
-    '''
+    """
     KEYBDINPUT structure (winuser.h)
 
     Contains information about a simulated keyboard event.
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-keybdinput
-    '''
+    """
+
     # Python side type hinting
     wVk: int  # c_ushort
-    '''
+    """
     A virtual-key code. The code must be a value in the range 1 to 254. If the
     dwFlags member specifies KEYEVENTF_UNICODE, wVk must be 0.
-    '''
+    """
     wScan: int  # c_ushort
-    '''
+    """
     A hardware scan code for the key. If dwFlags specifies KEYEVENTF_UNICODE,
     wScan specifies a Unicode character which is to be sent to the foreground
     application.
-    '''
+    """
     dwFlags: int  # c_ulong
-    '''
+    """
     Specifies various aspects of a keystroke. This member can be certain
     combinations of the following values. (See _KEYEVENTF_* constants)
-    '''
+    """
     time: int  # c_ulong
-    '''
+    """
     The time stamp for the event, in milliseconds. If this parameter is zero,
     the system will provide its own time stamp.
-    '''
+    """
     dwExtraInfo: _PUL_PyType
-    '''
+    """
     An additional value associated with the keystroke. Use the
     GetMessageExtraInfo[1] function to obtain this information.
 
     [1] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessageextrainfo
-    '''
+    """
     # ctypes side struct definition
     _fields_ = [
         ("wVk", c_ushort),
         ("wScan", c_ushort),
         ("dwFlags", c_ulong),
         ("time", c_ulong),
-        ("dwExtraInfo", _PUL)
+        ("dwExtraInfo", _PUL),
     ]
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- HARDWAREINPUT ----------------------------------------------------------
 class _HARDWAREINPUT(Structure):
-    '''
+    """
     HARDWAREINPUT structure (winuser.h)
 
     Contains information about a simulated message generated by an input
     device other than a keyboard or mouse.
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-hardwareinput
-    '''
+    """
+
     # Python side type hinting
     uMsg: int  # c_ulong
-    '''The message generated by the input hardware.'''
+    """The message generated by the input hardware."""
     wParamL: int  # c_short
-    '''The low-order word of the lParam parameter for uMsg.'''
+    """The low-order word of the lParam parameter for uMsg."""
     wParamH: int  # c_ushort
-    '''The high-order word of the lParam parameter for uMsg.'''
+    """The high-order word of the lParam parameter for uMsg."""
     # ctypes side struct definition
-    _fields_ = [
-        ("uMsg", c_ulong),
-        ("wParamL", c_short),
-        ("wParamH", c_ushort)
-    ]
-# ------------------------------------------------------------------------------
+    _fields_ = [("uMsg", c_ulong), ("wParamL", c_short), ("wParamH", c_ushort)]
+    # --------------------------------------------------------------------------
 
 
 # ----- POINT ------------------------------------------------------------------
 class _POINT(Structure):
-    '''
+    """
     POINT structure
 
     The POINT structure defines the x- and y- coordinates of a point.
 
     https://docs.microsoft.com/en-us/previous-versions/dd162805(v=vs.85)
-    '''
+    """
+
     # Python side type hinting
     x: int  # c_long
-    '''The x-coordinate of the point.'''
+    """The x-coordinate of the point."""
     y: int  # c_long
-    '''The y-coordinate of the point.'''
+    """The y-coordinate of the point."""
     # ctypes side struct definition
-    _fields_ = [
-        ("x", c_long),
-        ("y", c_long)
-    ]
-# ------------------------------------------------------------------------------
+    _fields_ = [("x", c_long), ("y", c_long)]
+    # --------------------------------------------------------------------------
 
 
 # ----- INPUT ------------------------------------------------------------------
 class _INPUT_UNION(Union):
-    '''
+    """
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input
-    '''
+    """
+
     # Python side type hinting
     mi: _MOUSEINPUT
     ki: _KEYBDINPUT
@@ -779,102 +797,90 @@ class _INPUT_UNION(Union):
     _fields_ = [
         ("mi", _MOUSEINPUT),
         ("ki", _KEYBDINPUT),
-        ("hi", _HARDWAREINPUT)
+        ("hi", _HARDWAREINPUT),
     ]
 
 
 class _INPUT(Structure):
-    '''
+    """
     INPUT structure (winuser.h)
 
     Used by SendInput to store information for synthesizing input events such
     as keystrokes, mouse movement, and mouse clicks.
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input
-    '''
+    """
+
     # Python side type hinting
     type: Literal[0, 1, 2]  # c_ulong
-    '''
+    """
     The type of the input event. This member can be one of the following
     values. (See _INPUT_* constants)
-    '''
+    """
     ii: _INPUT_UNION
     mi: _MOUSEINPUT  # part of _INPUT_UNION ii
-    '''The information about a simulated mouse event.'''
+    """The information about a simulated mouse event."""
     ki: _KEYBDINPUT  # part of _INPUT_UNION ii
-    '''The information about a simulated keyboard event.'''
+    """The information about a simulated keyboard event."""
     hi: _HARDWAREINPUT  # part of _INPUT_UNION ii
-    '''The information about a simulated hardware event.'''
+    """The information about a simulated hardware event."""
     # ctypes side struct definition
-    _anonymous_ = ('ii', )
-    _fields_ = [("type", c_ulong),
-                ("ii", _INPUT_UNION)]
-# ------------------------------------------------------------------------------
+    _anonymous_ = ("ii",)
+    _fields_ = [("type", c_ulong), ("ii", _INPUT_UNION)]
+    # --------------------------------------------------------------------------
 
 
 # ==============================================================================
 # ===== C struct factory functions =============================================
 # ==============================================================================
 
+
 # ----- _create_mouse_input ----------------------------------------------------
 def _create_mouse_input(
-    dx: int = 0,         # c_long
-    dy: int = 0,         # c_long
+    dx: int = 0,  # c_long
+    dy: int = 0,  # c_long
     mouseData: int = 0,  # c_ulong
-    dwFlags: int = 0,    # c_ulong
-    time: int = 0,       # c_ulong
+    dwFlags: int = 0,  # c_ulong
+    time: int = 0,  # c_ulong
 ) -> _INPUT:
-    '''Create INPUT structure for mouse input'''
+    """Create INPUT structure for mouse input"""
     dwExtraInfo: c_ulong = c_ulong(0)
     input_struct: _INPUT = _INPUT(_INPUT_MOUSE)
     input_struct.mi = _MOUSEINPUT(
-        dx,
-        dy,
-        mouseData,
-        dwFlags,
-        time,
-        pointer(dwExtraInfo)
+        dx, dy, mouseData, dwFlags, time, pointer(dwExtraInfo)
     )
     return input_struct
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- _create_keyboard_input -------------------------------------------------
 def _create_keyboard_input(
-    wVk: int = 0,      # c_ushort
-    wScan: int = 0,    # c_ushort
+    wVk: int = 0,  # c_ushort
+    wScan: int = 0,  # c_ushort
     dwFlags: int = 0,  # c_ulong
-    time: int = 0      # c_ulong
+    time: int = 0,  # c_ulong
 ) -> _INPUT:
-    '''Create INPUT structure for keyboard input'''
+    """Create INPUT structure for keyboard input"""
     dwExtraInfo: c_ulong = c_ulong(0)
     input_struct: _INPUT = _INPUT(_INPUT_KEYBOARD)
     input_struct.ki = _KEYBDINPUT(
-        wVk,
-        wScan,
-        dwFlags,
-        time,
-        pointer(dwExtraInfo)
+        wVk, wScan, dwFlags, time, pointer(dwExtraInfo)
     )
     return input_struct
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- _create_hardware_input -------------------------------------------------
 def _create_hardware_input(  # pyright: ignore[reportUnusedFunction]
-    uMsg: int = 0,     # c_ulong
+    uMsg: int = 0,  # c_ulong
     wParamL: int = 0,  # c_short
-    wParamH: int = 0   # c_ushort
+    wParamH: int = 0,  # c_ushort
 ) -> _INPUT:
-    '''Create INPUT structure for hardware input'''
+    """Create INPUT structure for hardware input"""
     input_struct: _INPUT = _INPUT(_INPUT_HARDWARE)
-    input_struct.hi = _HARDWAREINPUT(
-        uMsg,
-        wParamL,
-        wParamH
-    )
+    input_struct.hi = _HARDWAREINPUT(uMsg, wParamL, wParamH)
     return input_struct
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ==============================================================================
@@ -895,13 +901,13 @@ class _SendInputType(Protocol):
         self,
         cInputs: c_uint | int,
         pInputs: _POINTER_TYPE[_INPUT] | _INPUT | Array[_INPUT],
-        cbSize: c_int | int
+        cbSize: c_int | int,
     ) -> int:  # c_uint
         ...
 
 
 _SendInput: _SendInputType = hint_cast(_SendInputType, _user32.SendInput)
-'''
+"""
 ----- SendInput function (winuser.h) -----
 
 Synthesizes keystrokes, mouse motions, and button clicks.
@@ -967,7 +973,7 @@ An accessibility application can use SendInput to inject keystrokes
 corresponding to application launch shortcut keys that are handled by the
 shell.
 This functionality is not guaranteed to work for other types of applications.
-'''
+"""
 _SendInput.argtypes = c_uint, POINTER(_INPUT), c_int
 _SendInput.restype = c_uint
 
@@ -975,11 +981,11 @@ _SendInput.restype = c_uint
 def _send_input(
     inputs: _INPUT | Sequence[_INPUT],
 ) -> int:
-    '''
+    """
     Abstraction layer over SendInput (winuser.h)
 
     See https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput
-    '''
+    """
     # prepare arguments
     cInputs: c_uint
     inputs_array: Array[_INPUT]
@@ -994,7 +1000,7 @@ def _send_input(
     # execute function
     # inputs_array will be automatically be referenced by pointer
     return _SendInput(cInputs, inputs_array, cbSize)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- MapVirtualKeyW Declaration ---------------------------------------------
@@ -1003,15 +1009,13 @@ class _MapVirtualKeyWType(Protocol):
     restype: type[c_uint]
 
     def __call__(
-        self,
-        uCode: c_uint | int,
-        uMapType: c_uint | int
+        self, uCode: c_uint | int, uMapType: c_uint | int
     ) -> int:  # c_uint
         ...
 
 
 _MapVirtualKeyW = hint_cast(_MapVirtualKeyWType, _user32.MapVirtualKeyW)
-'''
+"""
 ----- MapVirtualKeyW function (winuser.h) -----
 
 Translates (maps) a virtual-key code into a scan code or character value, or
@@ -1081,16 +1085,15 @@ table of virtual key codes, see Virtual Key Codes[1].
 [4] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate
 
 [5] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeystate
-'''
+"""
 _MapVirtualKeyW.argtypes = c_uint, c_uint
 _MapVirtualKeyW.restype = c_uint
 
 
 def _map_virtual_key(
-    uCode: int,
-    uMapType: Literal[0, 1, 2, 3, 4]  # See _MAPVK_* constants
+    uCode: int, uMapType: Literal[0, 1, 2, 3, 4]  # See _MAPVK_* constants
 ) -> int:
-    '''
+    """
     Abstraction layer over MapVirtualKeyW (winuser.h)
 
     Accepted values for uMapType are:
@@ -1101,9 +1104,9 @@ def _map_virtual_key(
     - _MAPVK_VK_TO_VSC_EX = 4
 
     See https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mapvirtualkeyw
-    '''
+    """
     return _MapVirtualKeyW(c_uint(uCode), c_uint(uMapType))
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- GetSystemMetrics Declaration -------------------------------------------
@@ -1119,7 +1122,7 @@ class _GetSystemMetricsType(Protocol):
 
 
 _GetSystemMetrics = hint_cast(_GetSystemMetricsType, _user32.GetSystemMetrics)
-'''
+"""
 ----- GetSystemMetrics function (winuser.h) -----
 
 Retrieves the specified system metric or system configuration setting.
@@ -1170,21 +1173,21 @@ Windows High DPI documentation[3].
 [2] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsystemmetricsfordpi
 
 [3] https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
-'''  # noqa (URL too long)
-_GetSystemMetrics.argtypes = c_int,
+"""  # noqa (URL too long)
+_GetSystemMetrics.argtypes = (c_int,)
 _GetSystemMetrics.restype = c_int
 
 
 def _get_system_metrics(nIndex: int) -> int:
-    '''
+    """
     Abstraction layer over GetSystemMetrics (winuser.h)
 
     See the _SM_* constants for accepted values for the nIndex argument.
 
     See https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsystemmetrics
-    '''
+    """
     return _GetSystemMetrics(nIndex)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- GetCursorPos Declaration -----------------------------------------------
@@ -1193,14 +1196,13 @@ class _GetCursorPosType(Protocol):
     restype: type[c_bool]
 
     def __call__(
-        self,
-        lpPoint: _POINTER_TYPE[_POINT] | _POINT
+        self, lpPoint: _POINTER_TYPE[_POINT] | _POINT
     ) -> bool:  # c_bool
         ...
 
 
 _GetCursorPos = hint_cast(_GetCursorPosType, _user32.GetCursorPos)
-'''
+"""
 ----- GetCursorPos function (winuser.h) -----
 
 Retrieves the position of the mouse cursor, in screen coordinates.
@@ -1239,22 +1241,22 @@ OpenInputDesktop to switch to that desktop.
 [1] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-openinputdesktop
 
 [2] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setthreaddesktop
-'''
-_GetCursorPos.argtypes = POINTER(_POINT),
+"""
+_GetCursorPos.argtypes = (POINTER(_POINT),)
 _GetCursorPos.restype = c_bool
 
 
 def _get_cursor_pos() -> _POINT:
-    '''
+    """
     Abstraction layer over GetCursorPos (winuser.h)
 
     See https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getcursorpos
-    '''
+    """
     cursor = _POINT()
     # cursor will be automatically be referenced by pointer
     _GetCursorPos(cursor)
     return cursor
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- SystemParametersInfoW Declaration -----------------------------------------------
@@ -1273,10 +1275,9 @@ class _SystemParametersInfoW_Type(Protocol):
 
 
 _SystemParametersInfoW = hint_cast(
-    _SystemParametersInfoW_Type,
-    _user32.SystemParametersInfoW
+    _SystemParametersInfoW_Type, _user32.SystemParametersInfoW
 )
-'''
+"""
 ----- SystemParametersInfoW function (winuser.h) -----
 
 Retrieves or sets the value of one of the system-wide parameters. This
@@ -1284,14 +1285,14 @@ function can also update the user profile while setting a parameter.
 
 https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow
 
-'''
+"""
 _SystemParametersInfoW.argtypes = c_uint, c_uint, c_void_p, c_uint
 _SystemParametersInfoW.restype = c_bool
 
 
 # ----- Get system settings for mouse movement ---------------------------------
 def _get_mouse_parameters() -> tuple[int, int, int]:
-    '''
+    """
     Query system parameters for user's mouse settings.
 
     Abstraction layer over SystemParametersInfoW (winuser.h)
@@ -1305,20 +1306,18 @@ def _get_mouse_parameters() -> tuple[int, int, int]:
     these values. See mouse_event[1] for further information.
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mouse_event
-    '''
+    """
     pvParam: Array[c_uint] = (c_uint * 3)()
     _SystemParametersInfoW(_SPI_GETMOUSE, 0, pointer(pvParam), 0)
     return (pvParam[0], pvParam[1], pvParam[2])
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- Set system settings for mouse movement ---------------------------------
 def _set_mouse_parameters(
-    threshold1: int,
-    threshold2: int,
-    enhanced_pointer_precision: int
+    threshold1: int, threshold2: int, enhanced_pointer_precision: int
 ) -> bool:
-    '''
+    """
     Set system parameters for user's mouse settings.
 
     Abstraction layer over SystemParametersInfoW (winuser.h)
@@ -1333,22 +1332,20 @@ def _set_mouse_parameters(
     See mouse_event[1] for further information.
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mouse_event
-    '''
+    """
     pvParam: Final[Array[c_uint]] = (c_uint * 3)(
-        threshold1,
-        threshold2,
-        enhanced_pointer_precision
+        threshold1, threshold2, enhanced_pointer_precision
     )
     # leave last parameter as 0 to make changes non-permanent and restore
     # themselves upon reboot if something goes wrong and the wrong setting
     # was overwritten.
     return _SystemParametersInfoW(_SPI_SETMOUSE, 0, pointer(pvParam), 0)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- Get system settings for mouse speed ------------------------------------
 def _get_mouse_speed() -> int:
-    '''
+    """
     Query system parameters for user's mouse settings.
 
     Abstraction layer over SystemParametersInfoW (winuser.h)
@@ -1363,16 +1360,16 @@ def _get_mouse_speed() -> int:
     between 1 (slowest) and 20 (fastest). A value of 10 is the default. The
     value can be set by an end-user using the mouse control panel application
     or by an application using SPI_SETMOUSESPEED.
-    '''
+    """
     pvParam: Array[c_uint] = (c_uint * 1)()
     _SystemParametersInfoW(_SPI_GETMOUSESPEED, 0, pointer(pvParam), 0)
     return pvParam[0]
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- Set system settings for mouse movement ---------------------------------
 def _set_mouse_speed(mouse_speed: int) -> bool:
-    '''
+    """
     Set system parameters for user's mouse settings.
 
     Abstraction layer over SystemParametersInfoW (winuser.h)
@@ -1384,41 +1381,43 @@ def _set_mouse_speed(mouse_speed: int) -> bool:
     Sets the current mouse speed. The pvParam parameter is an integer between
     1 (slowest) and 20 (fastest). A value of 10 is the default. This value is
     typically set using the mouse control panel application.
-    '''
+    """
     pvParam: Final[Array[c_uint]] = (c_uint * 1)(mouse_speed)
     # leave last parameter as 0 to make changes non-permanent and restore
     # themselves upon reboot if something goes wrong and the wrong setting
     # was overwritten.
     return _SystemParametersInfoW(_SPI_SETMOUSESPEED, 0, pointer(pvParam), 0)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ==============================================================================
 # ===== Keyboard Scan Code Mappings ============================================
 # ==============================================================================
 
+
 # ----- Special class for key extended scancode sequences ----------------------
 class ScancodeSequence(_list[int]):
-    '''
+    """
     A special class with the sole purpose of representing extended scancode
     sequences that should be grouped together in a single INPUT array.
 
     Inserting non-scancode elements is illegal, but no runtime checks exist
     to verify correct input! Violations could lead to unpredictable runtime
     behaviour. You've been warned.
-    '''
+    """
+
     pass
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- TypeAlias for KEYBOARD_MAPPING values ----------------------------------
 ScancodeTypes: TypeAlias = "int | ScancodeSequence"  # TODO 3.10: remove quotes
-'''
+"""
 Acceptable value types in KEYBOARD_MAPPING.
 
 Accepts single standalone scancode integer or multiple scancode integers
 contained in a special class ScancodeSequence instance.
-'''
+"""
 # ------------------------------------------------------------------------------
 
 
@@ -1433,249 +1432,249 @@ _SHIFT_SCANCODE: Final = 0x2A  # Used in auto-shifting
 # should be keyboard MAKE scancodes ( <0x80 )
 # some keys require the use of EXTENDEDKEY flags, they
 US_QWERTY_MAPPING: Final[dict[str, ScancodeTypes]] = {
-    'escape': 0x01,
-    'esc': 0x01,
-    'f1': 0x3B,
-    'f2': 0x3C,
-    'f3': 0x3D,
-    'f4': 0x3E,
-    'f5': 0x3F,
-    'f6': 0x40,
-    'f7': 0x41,
-    'f8': 0x42,
-    'f9': 0x43,
-    'f10': 0x44,
-    'f11': 0x57,
-    'f12': 0x58,
-    'printscreen': 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
-    'prntscrn': 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
-    'prtsc': 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
-    'prtscr': 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
-    'scrolllock': 0x46,
-    'ctrlbreak': 0x46 + _OFFSET_EXTENDEDKEY,
-    'pause': ScancodeSequence([0xE11D, 0x45, 0xE19D, 0xC5]),
-    '`': 0x29,
-    '1': 0x02,
-    '2': 0x03,
-    '3': 0x04,
-    '4': 0x05,
-    '5': 0x06,
-    '6': 0x07,
-    '7': 0x08,
-    '8': 0x09,
-    '9': 0x0A,
-    '0': 0x0B,
-    '-': 0x0C,
-    '=': 0x0D,
-    '~': 0x29 + _OFFSET_SHIFTKEY,
-    '!': 0x02 + _OFFSET_SHIFTKEY,
-    '@': 0x03 + _OFFSET_SHIFTKEY,
-    '#': 0x04 + _OFFSET_SHIFTKEY,
-    '$': 0x05 + _OFFSET_SHIFTKEY,
-    '%': 0x06 + _OFFSET_SHIFTKEY,
-    '^': 0x07 + _OFFSET_SHIFTKEY,
-    '&': 0x08 + _OFFSET_SHIFTKEY,
-    '*': 0x09 + _OFFSET_SHIFTKEY,
-    '(': 0x0A + _OFFSET_SHIFTKEY,
-    ')': 0x0B + _OFFSET_SHIFTKEY,
-    '_': 0x0C + _OFFSET_SHIFTKEY,
-    '+': 0x0D + _OFFSET_SHIFTKEY,
-    'backspace': 0x0E,
-    '\b': 0x0E,
-    'insert': 0x52 + _OFFSET_EXTENDEDKEY,
-    'home': 0x47 + _OFFSET_EXTENDEDKEY,
-    'pageup': 0x49 + _OFFSET_EXTENDEDKEY,
-    'pgup': 0x49 + _OFFSET_EXTENDEDKEY,
-    'pagedown': 0x51 + _OFFSET_EXTENDEDKEY,
-    'pgdn': 0x51 + _OFFSET_EXTENDEDKEY,
+    "escape": 0x01,
+    "esc": 0x01,
+    "f1": 0x3B,
+    "f2": 0x3C,
+    "f3": 0x3D,
+    "f4": 0x3E,
+    "f5": 0x3F,
+    "f6": 0x40,
+    "f7": 0x41,
+    "f8": 0x42,
+    "f9": 0x43,
+    "f10": 0x44,
+    "f11": 0x57,
+    "f12": 0x58,
+    "printscreen": 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
+    "prntscrn": 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
+    "prtsc": 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
+    "prtscr": 0x54,  # same result as ScancodeSequence([0xE02A, 0xE037])
+    "scrolllock": 0x46,
+    "ctrlbreak": 0x46 + _OFFSET_EXTENDEDKEY,
+    "pause": ScancodeSequence([0xE11D, 0x45, 0xE19D, 0xC5]),
+    "`": 0x29,
+    "1": 0x02,
+    "2": 0x03,
+    "3": 0x04,
+    "4": 0x05,
+    "5": 0x06,
+    "6": 0x07,
+    "7": 0x08,
+    "8": 0x09,
+    "9": 0x0A,
+    "0": 0x0B,
+    "-": 0x0C,
+    "=": 0x0D,
+    "~": 0x29 + _OFFSET_SHIFTKEY,
+    "!": 0x02 + _OFFSET_SHIFTKEY,
+    "@": 0x03 + _OFFSET_SHIFTKEY,
+    "#": 0x04 + _OFFSET_SHIFTKEY,
+    "$": 0x05 + _OFFSET_SHIFTKEY,
+    "%": 0x06 + _OFFSET_SHIFTKEY,
+    "^": 0x07 + _OFFSET_SHIFTKEY,
+    "&": 0x08 + _OFFSET_SHIFTKEY,
+    "*": 0x09 + _OFFSET_SHIFTKEY,
+    "(": 0x0A + _OFFSET_SHIFTKEY,
+    ")": 0x0B + _OFFSET_SHIFTKEY,
+    "_": 0x0C + _OFFSET_SHIFTKEY,
+    "+": 0x0D + _OFFSET_SHIFTKEY,
+    "backspace": 0x0E,
+    "\b": 0x0E,
+    "insert": 0x52 + _OFFSET_EXTENDEDKEY,
+    "home": 0x47 + _OFFSET_EXTENDEDKEY,
+    "pageup": 0x49 + _OFFSET_EXTENDEDKEY,
+    "pgup": 0x49 + _OFFSET_EXTENDEDKEY,
+    "pagedown": 0x51 + _OFFSET_EXTENDEDKEY,
+    "pgdn": 0x51 + _OFFSET_EXTENDEDKEY,
     # numpad
-    'numlock': 0x45,
-    'divide': 0x35 + _OFFSET_EXTENDEDKEY,
-    'multiply': 0x37,
-    'subtract': 0x4A,
-    'add': 0x4E,
-    'decimal': 0x53,
-    'numperiod': 0x53,
-    'numpadenter': 0x1C + _OFFSET_EXTENDEDKEY,
-    'numpad1': 0x4F,
-    'numpad2': 0x50,
-    'numpad3': 0x51,
-    'numpad4': 0x4B,
-    'numpad5': 0x4C,
-    'numpad6': 0x4D,
-    'numpad7': 0x47,
-    'numpad8': 0x48,
-    'numpad9': 0x49,
-    'num0': 0x52,
-    'num1': 0x4F,
-    'num2': 0x50,
-    'num3': 0x51,
-    'num4': 0x4B,
-    'num5': 0x4C,
-    'num6': 0x4D,
-    'num7': 0x47,
-    'num8': 0x48,
-    'num9': 0x49,
-    'num0': 0x52,
-    'clear': 0x4C,  # name from pyautogui
+    "numlock": 0x45,
+    "divide": 0x35 + _OFFSET_EXTENDEDKEY,
+    "multiply": 0x37,
+    "subtract": 0x4A,
+    "add": 0x4E,
+    "decimal": 0x53,
+    "numperiod": 0x53,
+    "numpadenter": 0x1C + _OFFSET_EXTENDEDKEY,
+    "numpad1": 0x4F,
+    "numpad2": 0x50,
+    "numpad3": 0x51,
+    "numpad4": 0x4B,
+    "numpad5": 0x4C,
+    "numpad6": 0x4D,
+    "numpad7": 0x47,
+    "numpad8": 0x48,
+    "numpad9": 0x49,
+    "num0": 0x52,
+    "num1": 0x4F,
+    "num2": 0x50,
+    "num3": 0x51,
+    "num4": 0x4B,
+    "num5": 0x4C,
+    "num6": 0x4D,
+    "num7": 0x47,
+    "num8": 0x48,
+    "num9": 0x49,
+    "num0": 0x52,
+    "clear": 0x4C,  # name from pyautogui
     # end numpad
-    'tab': 0x0F,
-    '\t': 0x0F,
-    'q': 0x10,
-    'w': 0x11,
-    'e': 0x12,
-    'r': 0x13,
-    't': 0x14,
-    'y': 0x15,
-    'u': 0x16,
-    'i': 0x17,
-    'o': 0x18,
-    'p': 0x19,
-    '[': 0x1A,
-    ']': 0x1B,
-    '\\': 0x2B,
-    'Q': 0x10 + _OFFSET_SHIFTKEY,
-    'W': 0x11 + _OFFSET_SHIFTKEY,
-    'E': 0x12 + _OFFSET_SHIFTKEY,
-    'R': 0x13 + _OFFSET_SHIFTKEY,
-    'T': 0x14 + _OFFSET_SHIFTKEY,
-    'Y': 0x15 + _OFFSET_SHIFTKEY,
-    'U': 0x16 + _OFFSET_SHIFTKEY,
-    'I': 0x17 + _OFFSET_SHIFTKEY,
-    'O': 0x18 + _OFFSET_SHIFTKEY,
-    'P': 0x19 + _OFFSET_SHIFTKEY,
-    '{': 0x1A + _OFFSET_SHIFTKEY,
-    '}': 0x1B + _OFFSET_SHIFTKEY,
-    '|': 0x2B + _OFFSET_SHIFTKEY,
-    'del': 0x53 + _OFFSET_EXTENDEDKEY,
-    'delete': 0x53 + _OFFSET_EXTENDEDKEY,
-    'end': 0x4F + _OFFSET_EXTENDEDKEY,
-    'capslock': 0x3A,
-    'a': 0x1E,
-    's': 0x1F,
-    'd': 0x20,
-    'f': 0x21,
-    'g': 0x22,
-    'h': 0x23,
-    'j': 0x24,
-    'k': 0x25,
-    'l': 0x26,
-    ';': 0x27,
+    "tab": 0x0F,
+    "\t": 0x0F,
+    "q": 0x10,
+    "w": 0x11,
+    "e": 0x12,
+    "r": 0x13,
+    "t": 0x14,
+    "y": 0x15,
+    "u": 0x16,
+    "i": 0x17,
+    "o": 0x18,
+    "p": 0x19,
+    "[": 0x1A,
+    "]": 0x1B,
+    "\\": 0x2B,
+    "Q": 0x10 + _OFFSET_SHIFTKEY,
+    "W": 0x11 + _OFFSET_SHIFTKEY,
+    "E": 0x12 + _OFFSET_SHIFTKEY,
+    "R": 0x13 + _OFFSET_SHIFTKEY,
+    "T": 0x14 + _OFFSET_SHIFTKEY,
+    "Y": 0x15 + _OFFSET_SHIFTKEY,
+    "U": 0x16 + _OFFSET_SHIFTKEY,
+    "I": 0x17 + _OFFSET_SHIFTKEY,
+    "O": 0x18 + _OFFSET_SHIFTKEY,
+    "P": 0x19 + _OFFSET_SHIFTKEY,
+    "{": 0x1A + _OFFSET_SHIFTKEY,
+    "}": 0x1B + _OFFSET_SHIFTKEY,
+    "|": 0x2B + _OFFSET_SHIFTKEY,
+    "del": 0x53 + _OFFSET_EXTENDEDKEY,
+    "delete": 0x53 + _OFFSET_EXTENDEDKEY,
+    "end": 0x4F + _OFFSET_EXTENDEDKEY,
+    "capslock": 0x3A,
+    "a": 0x1E,
+    "s": 0x1F,
+    "d": 0x20,
+    "f": 0x21,
+    "g": 0x22,
+    "h": 0x23,
+    "j": 0x24,
+    "k": 0x25,
+    "l": 0x26,
+    ";": 0x27,
     "'": 0x28,
-    'A': 0x1E + _OFFSET_SHIFTKEY,
-    'S': 0x1F + _OFFSET_SHIFTKEY,
-    'D': 0x20 + _OFFSET_SHIFTKEY,
-    'F': 0x21 + _OFFSET_SHIFTKEY,
-    'G': 0x22 + _OFFSET_SHIFTKEY,
-    'H': 0x23 + _OFFSET_SHIFTKEY,
-    'J': 0x24 + _OFFSET_SHIFTKEY,
-    'K': 0x25 + _OFFSET_SHIFTKEY,
-    'L': 0x26 + _OFFSET_SHIFTKEY,
-    ':': 0x27 + _OFFSET_SHIFTKEY,
+    "A": 0x1E + _OFFSET_SHIFTKEY,
+    "S": 0x1F + _OFFSET_SHIFTKEY,
+    "D": 0x20 + _OFFSET_SHIFTKEY,
+    "F": 0x21 + _OFFSET_SHIFTKEY,
+    "G": 0x22 + _OFFSET_SHIFTKEY,
+    "H": 0x23 + _OFFSET_SHIFTKEY,
+    "J": 0x24 + _OFFSET_SHIFTKEY,
+    "K": 0x25 + _OFFSET_SHIFTKEY,
+    "L": 0x26 + _OFFSET_SHIFTKEY,
+    ":": 0x27 + _OFFSET_SHIFTKEY,
     '"': 0x28 + _OFFSET_SHIFTKEY,
-    'enter': 0x1C,
-    'return': 0x1C,
-    '\n': 0x1C,
-    'shift': _SHIFT_SCANCODE,
-    'shiftleft': _SHIFT_SCANCODE,
-    'z': 0x2C,
-    'x': 0x2D,
-    'c': 0x2E,
-    'v': 0x2F,
-    'b': 0x30,
-    'n': 0x31,
-    'm': 0x32,
-    ',': 0x33,
-    '.': 0x34,
-    '/': 0x35,
-    'Z': 0x2C + _OFFSET_SHIFTKEY,
-    'X': 0x2D + _OFFSET_SHIFTKEY,
-    'C': 0x2E + _OFFSET_SHIFTKEY,
-    'V': 0x2F + _OFFSET_SHIFTKEY,
-    'B': 0x30 + _OFFSET_SHIFTKEY,
-    'N': 0x31 + _OFFSET_SHIFTKEY,
-    'M': 0x32 + _OFFSET_SHIFTKEY,
-    '<': 0x33 + _OFFSET_SHIFTKEY,
-    '>': 0x34 + _OFFSET_SHIFTKEY,
-    '?': 0x35 + _OFFSET_SHIFTKEY,
-    'shiftright': 0x36,
-    'ctrl': 0x1D,
-    'ctrlleft': 0x1D,
-    'win': 0x5B + _OFFSET_EXTENDEDKEY,
-    'super': 0x5B + _OFFSET_EXTENDEDKEY,  # name from pyautogui
-    'winleft': 0x5B + _OFFSET_EXTENDEDKEY,
-    'alt': 0x38,
-    'altleft': 0x38,
-    ' ': 0x39,
-    'space': 0x39,
-    'altright': 0x38 + _OFFSET_EXTENDEDKEY,
-    'winright': 0x5C + _OFFSET_EXTENDEDKEY,
-    'apps': 0x5D + _OFFSET_EXTENDEDKEY,
-    'context': 0x5D + _OFFSET_EXTENDEDKEY,
-    'contextmenu': 0x5D + _OFFSET_EXTENDEDKEY,
-    'ctrlright': 0x1D + _OFFSET_EXTENDEDKEY,
+    "enter": 0x1C,
+    "return": 0x1C,
+    "\n": 0x1C,
+    "shift": _SHIFT_SCANCODE,
+    "shiftleft": _SHIFT_SCANCODE,
+    "z": 0x2C,
+    "x": 0x2D,
+    "c": 0x2E,
+    "v": 0x2F,
+    "b": 0x30,
+    "n": 0x31,
+    "m": 0x32,
+    ",": 0x33,
+    ".": 0x34,
+    "/": 0x35,
+    "Z": 0x2C + _OFFSET_SHIFTKEY,
+    "X": 0x2D + _OFFSET_SHIFTKEY,
+    "C": 0x2E + _OFFSET_SHIFTKEY,
+    "V": 0x2F + _OFFSET_SHIFTKEY,
+    "B": 0x30 + _OFFSET_SHIFTKEY,
+    "N": 0x31 + _OFFSET_SHIFTKEY,
+    "M": 0x32 + _OFFSET_SHIFTKEY,
+    "<": 0x33 + _OFFSET_SHIFTKEY,
+    ">": 0x34 + _OFFSET_SHIFTKEY,
+    "?": 0x35 + _OFFSET_SHIFTKEY,
+    "shiftright": 0x36,
+    "ctrl": 0x1D,
+    "ctrlleft": 0x1D,
+    "win": 0x5B + _OFFSET_EXTENDEDKEY,
+    "super": 0x5B + _OFFSET_EXTENDEDKEY,  # name from pyautogui
+    "winleft": 0x5B + _OFFSET_EXTENDEDKEY,
+    "alt": 0x38,
+    "altleft": 0x38,
+    " ": 0x39,
+    "space": 0x39,
+    "altright": 0x38 + _OFFSET_EXTENDEDKEY,
+    "winright": 0x5C + _OFFSET_EXTENDEDKEY,
+    "apps": 0x5D + _OFFSET_EXTENDEDKEY,
+    "context": 0x5D + _OFFSET_EXTENDEDKEY,
+    "contextmenu": 0x5D + _OFFSET_EXTENDEDKEY,
+    "ctrlright": 0x1D + _OFFSET_EXTENDEDKEY,
     # Originally from learncodebygaming/pydirectinput:
     # arrow key scancodes can be different depending on the hardware,
     # so I think the best solution is to look it up based on the virtual key
     # https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mapvirtualkeya
-    'up': _map_virtual_key(0x26, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
-    'left': _map_virtual_key(0x25, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
-    'down': _map_virtual_key(0x28, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
-    'right': _map_virtual_key(0x27, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
+    "up": _map_virtual_key(0x26, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
+    "left": _map_virtual_key(0x25, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
+    "down": _map_virtual_key(0x28, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
+    "right": _map_virtual_key(0x27, _MAPVK_VK_TO_VSC) + _OFFSET_EXTENDEDKEY,
     # While forking the original repository and working on the code,
     # I'm starting to doubt this still holds true.
     # As far as I can see, arrow keys are just the Numpad scancodes for Num
     # 2, 4, 6, and 8 with EXTENDEDKEY flag.
     # In fact, looking up the virtual key codes will just return the very same
     # scancodes the Numpad keys occupy.
-    'help': 0x63,
-    'sleep': 0x5f + _OFFSET_EXTENDEDKEY,
-    'medianext': 0x19 + _OFFSET_EXTENDEDKEY,
-    'nexttrack': 0x19 + _OFFSET_EXTENDEDKEY,
-    'mediaprevious': 0x10 + _OFFSET_EXTENDEDKEY,
-    'prevtrack': 0x10 + _OFFSET_EXTENDEDKEY,
-    'mediastop': 0x24 + _OFFSET_EXTENDEDKEY,
-    'stop': 0x24 + _OFFSET_EXTENDEDKEY,
-    'mediaplay': 0x22 + _OFFSET_EXTENDEDKEY,
-    'mediapause': 0x22 + _OFFSET_EXTENDEDKEY,
-    'playpause': 0x22 + _OFFSET_EXTENDEDKEY,
-    'mute': 0x20 + _OFFSET_EXTENDEDKEY,
-    'volumemute': 0x20 + _OFFSET_EXTENDEDKEY,
-    'volumeup': 0x30 + _OFFSET_EXTENDEDKEY,
-    'volup': 0x30 + _OFFSET_EXTENDEDKEY,
-    'volumedown': 0x2E + _OFFSET_EXTENDEDKEY,
-    'voldown': 0x2E + _OFFSET_EXTENDEDKEY,
-    'media': 0x6D + _OFFSET_EXTENDEDKEY,
-    'launchmediaselect': 0x6D + _OFFSET_EXTENDEDKEY,
-    'email': 0x6C + _OFFSET_EXTENDEDKEY,
-    'launchmail': 0x6C + _OFFSET_EXTENDEDKEY,
-    'calculator': 0x21 + _OFFSET_EXTENDEDKEY,
-    'calc': 0x21 + _OFFSET_EXTENDEDKEY,
-    'launch1': 0x6B + _OFFSET_EXTENDEDKEY,
-    'launchapp1': 0x6B + _OFFSET_EXTENDEDKEY,
-    'launch2': 0x21 + _OFFSET_EXTENDEDKEY,
-    'launchapp2': 0x21 + _OFFSET_EXTENDEDKEY,
-    'browsersearch': 0x65 + _OFFSET_EXTENDEDKEY,
-    'browserhome': 0x32 + _OFFSET_EXTENDEDKEY,
-    'browserforward': 0x69 + _OFFSET_EXTENDEDKEY,
-    'browserback': 0x6A + _OFFSET_EXTENDEDKEY,
-    'browserstop': 0x68 + _OFFSET_EXTENDEDKEY,
-    'browserrefresh': 0x67 + _OFFSET_EXTENDEDKEY,
-    'browserfavorites': 0x66 + _OFFSET_EXTENDEDKEY,
-    'f13': 0x64,
-    'f14': 0x65,
-    'f15': 0x66,
-    'f16': 0x67,
-    'f17': 0x68,
-    'f18': 0x69,
-    'f19': 0x6A,
-    'f20': 0x6B,
-    'f21': 0x6C,
-    'f22': 0x6D,
-    'f23': 0x6E,
-    'f24': 0x76,
+    "help": 0x63,
+    "sleep": 0x5F + _OFFSET_EXTENDEDKEY,
+    "medianext": 0x19 + _OFFSET_EXTENDEDKEY,
+    "nexttrack": 0x19 + _OFFSET_EXTENDEDKEY,
+    "mediaprevious": 0x10 + _OFFSET_EXTENDEDKEY,
+    "prevtrack": 0x10 + _OFFSET_EXTENDEDKEY,
+    "mediastop": 0x24 + _OFFSET_EXTENDEDKEY,
+    "stop": 0x24 + _OFFSET_EXTENDEDKEY,
+    "mediaplay": 0x22 + _OFFSET_EXTENDEDKEY,
+    "mediapause": 0x22 + _OFFSET_EXTENDEDKEY,
+    "playpause": 0x22 + _OFFSET_EXTENDEDKEY,
+    "mute": 0x20 + _OFFSET_EXTENDEDKEY,
+    "volumemute": 0x20 + _OFFSET_EXTENDEDKEY,
+    "volumeup": 0x30 + _OFFSET_EXTENDEDKEY,
+    "volup": 0x30 + _OFFSET_EXTENDEDKEY,
+    "volumedown": 0x2E + _OFFSET_EXTENDEDKEY,
+    "voldown": 0x2E + _OFFSET_EXTENDEDKEY,
+    "media": 0x6D + _OFFSET_EXTENDEDKEY,
+    "launchmediaselect": 0x6D + _OFFSET_EXTENDEDKEY,
+    "email": 0x6C + _OFFSET_EXTENDEDKEY,
+    "launchmail": 0x6C + _OFFSET_EXTENDEDKEY,
+    "calculator": 0x21 + _OFFSET_EXTENDEDKEY,
+    "calc": 0x21 + _OFFSET_EXTENDEDKEY,
+    "launch1": 0x6B + _OFFSET_EXTENDEDKEY,
+    "launchapp1": 0x6B + _OFFSET_EXTENDEDKEY,
+    "launch2": 0x21 + _OFFSET_EXTENDEDKEY,
+    "launchapp2": 0x21 + _OFFSET_EXTENDEDKEY,
+    "browsersearch": 0x65 + _OFFSET_EXTENDEDKEY,
+    "browserhome": 0x32 + _OFFSET_EXTENDEDKEY,
+    "browserforward": 0x69 + _OFFSET_EXTENDEDKEY,
+    "browserback": 0x6A + _OFFSET_EXTENDEDKEY,
+    "browserstop": 0x68 + _OFFSET_EXTENDEDKEY,
+    "browserrefresh": 0x67 + _OFFSET_EXTENDEDKEY,
+    "browserfavorites": 0x66 + _OFFSET_EXTENDEDKEY,
+    "f13": 0x64,
+    "f14": 0x65,
+    "f15": 0x66,
+    "f16": 0x67,
+    "f17": 0x68,
+    "f18": 0x69,
+    "f19": 0x6A,
+    "f20": 0x6B,
+    "f21": 0x6C,
+    "f22": 0x6D,
+    "f23": 0x6E,
+    "f24": 0x76,
 }
-'''
+"""
 Maps a string representation of keyboard keys to their corresponding hardware
 scan code. Based on standard US QWERTY-Layout.
 
@@ -1684,17 +1683,17 @@ Not intended to be changed at runtime!
 If you want to change the keyboard mapping to better reflect your own keyboard
 layout, use `KEYBOARD_MAPPING.update(your_dict)` where `your_dict` is a dict
 that maps keynames to scancodes.
-'''
+"""
 
 KEYBOARD_MAPPING: dict[str, ScancodeTypes] = {}
-'''
+"""
 Maps a string representation of keyboard keys to their corresponding hardware
 scan code. Based on standard US QWERTY-Layout by default.
 
 If you want to change the keyboard mapping to better reflect your own keyboard
 layout, use `KEYBOARD_MAPPING.update(your_dict)`, where `your_dict` is a dict
 that maps keynames to scancodes.
-'''
+"""
 KEYBOARD_MAPPING.update(US_QWERTY_MAPPING)  # use US QWERTY by default
 # ------------------------------------------------------------------------------
 
@@ -1703,27 +1702,30 @@ KEYBOARD_MAPPING.update(US_QWERTY_MAPPING)  # use US QWERTY by default
 # ===== Fail Safe and Pause implementation =====================================
 # ==============================================================================
 
+
 # ----- Exceptions -------------------------------------------------------------
 class FailSafeException(Exception):
-    '''Raised when _failSafeCheck detects failsafe mouse position.'''
+    """Raised when _failSafeCheck detects failsafe mouse position."""
+
     pass
 
 
 class PriorInputFailedException(Exception):
-    '''Raised in hold() context managers when raise_on_failure is set.'''
+    """Raised in hold() context managers when raise_on_failure is set."""
+
     pass
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- Failsafe Check ---------------------------------------------------------
 def _failSafeCheck() -> None:
-    '''
+    """
     Check if mouse has been moved into one of the defined failsafe points,
     indicated by global var `FAILSAFE_POINTS`, and raise `FailSafeException`
     if that's the case.
 
     Set global var `FAILSAFE` to False to stop raising exceptions.
-    '''
+    """
     if FAILSAFE and tuple(position()) in FAILSAFE_POINTS:
         raise FailSafeException(
             "PyDirectInput fail-safe triggered from mouse moving to a corner "
@@ -1731,46 +1733,47 @@ def _failSafeCheck() -> None:
             "To disable this fail-safe, set pydirectinput.FAILSAFE to False. "
             "DISABLING FAIL-SAFE IS NOT RECOMMENDED."
         )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- handle pause for generic input checks ----------------------------------
 def _handlePause(_pause: Any) -> None:
-    '''
+    """
     Pause the default amount of time if `_pause=True` in function arguments.
-    '''
+    """
     if _pause and PAUSE:
         _sleep(PAUSE)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- generic input check decorator ------------------------------------------
-_PS = ParamSpec('_PS')  # param spec
-_RT = TypeVar('_RT')  # return type
+_PS = ParamSpec("_PS")  # param spec
+_RT = TypeVar("_RT")  # return type
 
 
 # direct copy of _genericPyAutoGUIChecks()
 def _genericPyDirectInputChecks(
     wrappedFunction: Callable[_PS, _RT]
 ) -> Callable[_PS, _RT]:
-    '''
+    """
     Decorator for wrapping input functions.
 
     Performs failsafe checking and inserts artifical delay after input
     functions have been executed unless disabled.
 
     The delay amount is set by global var `PAUSE`.
-    '''
+    """
+
     @functools.wraps(wrappedFunction)
     def wrapper(*args: _PS.args, **kwargs: _PS.kwargs) -> _RT:
         returnVal: _RT
         if PAUSE:  # Skip _pause checks if PAUSE has been globally disabled.
             _pause: Any
-            if '_pause' in kwargs:  # Fast track, low cost lookup.
-                _pause = kwargs['_pause']
+            if "_pause" in kwargs:  # Fast track, low cost lookup.
+                _pause = kwargs["_pause"]
             else:  # Slow track, inspect.getcallargs() is expensive.
-                funcArgs: dict[str, Any] = (
-                    inspect.getcallargs(wrappedFunction, *args, **kwargs)
+                funcArgs: dict[str, Any] = inspect.getcallargs(
+                    wrappedFunction, *args, **kwargs
                 )
                 _pause = funcArgs.get("_pause")
             _failSafeCheck()
@@ -1780,23 +1783,20 @@ def _genericPyDirectInputChecks(
             _failSafeCheck()
             returnVal = wrappedFunction(*args, **kwargs)
         return returnVal
+
     return wrapper
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ==============================================================================
 # ===== Helper Functions =======================================================
 # ==============================================================================
-
-# ------------------------------------------------------------------------------
-def _calc_normalized_screen_coord(
-    pixel_coord: int,
-    display_total: int
-) -> int:
-    '''
+# --------------------------------------------------------------------------
+def _calc_normalized_screen_coord(pixel_coord: int, display_total: int) -> int:
+    """
     Convert a pixel coordinate to normalized Windows screen coordinate value
     (range 0 - 65535) by taking the average of two neighboring pixels.
-    '''
+    """
     # formula from this strange (probably machine translated) article
     # https://sourceexample.com/make-a-statement-in-the-source-code-of-the-coordinate-conversion-of-sendinput-(windows-api)-that-is-overflowing-in-the-streets-23df9/
     # win_coord = (x * 65536 + width - 1) // width
@@ -1805,26 +1805,23 @@ def _calc_normalized_screen_coord(
     # In my testing this perfectly reflected the real pixel that SendInput
     # moves to, down to the pixels that Windows itself can't resolve.
     this_pixel: Final[int] = (
-        (pixel_coord * 65536 + display_total - 1) // display_total
-    )
+        pixel_coord * 65536 + display_total - 1
+    ) // display_total
     next_pixel: Final[int] = (
-        ((pixel_coord + 1) * 65536 + display_total - 1) // display_total
-    )
+        (pixel_coord + 1) * 65536 + display_total - 1
+    ) // display_total
     return (this_pixel + next_pixel) // 2
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- translate pixels to normalized Windows coordinates ---------------------
 def _to_windows_coordinates(
-    x: int = 0,
-    y: int = 0,
-    *,
-    virtual: bool = False
+    x: int = 0, y: int = 0, *, virtual: bool = False
 ) -> tuple[int, int]:
-    '''
+    """
     Convert x,y coordinates to normalized windows coordinates and return as
     tuple (x, y).
-    '''
+    """
     display_width: int
     display_height: int
     offset_left: int
@@ -1837,52 +1834,49 @@ def _to_windows_coordinates(
         offset_left, offset_top = 0, 0
 
     windows_x: int = _calc_normalized_screen_coord(
-        x - offset_left,
-        display_width
+        x - offset_left, display_width
     )
     windows_y: int = _calc_normalized_screen_coord(
-        y - offset_top,
-        display_height
+        y - offset_top, display_height
     )
 
     return windows_x, windows_y
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- get mouse position -----------------------------------------------------
 def position(
-    x: int | float | None = None,
-    y: int | float | None = None
+    x: int | float | None = None, y: int | float | None = None
 ) -> tuple[int, int]:
-    '''
+    """
     Return a postion tuple `(x, y)`.
 
     If x and/or y argument(s) ar not given, use current mouse cursor coordinate
     instead.
-    '''
+    """
     cursor: _POINT = _get_cursor_pos()
     return (
         cursor.x if x is None else int(x),
-        cursor.y if y is None else int(y)
+        cursor.y if y is None else int(y),
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- get primary screen resolution ------------------------------------------
 def size() -> tuple[int, int]:
-    '''
+    """
     Return the size of the primary display as tuple `(width, height)`.
-    '''
+    """
     return (
         _get_system_metrics(_SM_CXSCREEN),
-        _get_system_metrics(_SM_CYSCREEN)
+        _get_system_metrics(_SM_CYSCREEN),
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- get resolution of multi monitor bounding box ---------------------------
 def virtual_size() -> tuple[int, int, int, int]:
-    '''
+    """
     Return the the display size of the complete virtual monitor bounding box
     rectangle as tuple `(width, height, left_offset, top_offset)`.
 
@@ -1890,24 +1884,23 @@ def virtual_size() -> tuple[int, int, int, int]:
 
     `left_offset` and `top_offset` are measured from the top left pixel of the
     primary monitor.
-    '''
+    """
     return (
         _get_system_metrics(_SM_CXVIRTUALSCREEN),
         _get_system_metrics(_SM_CYVIRTUALSCREEN),
         _get_system_metrics(_SM_XVIRTUALSCREEN),
         _get_system_metrics(_SM_YVIRTUALSCREEN),
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- are coordinates on primary monitor -------------------------------------
 def onScreen(
-    x: int | tuple[int, int] | None = None,
-    y: int | None = None
+    x: int | tuple[int, int] | None = None, y: int | None = None
 ) -> bool:
-    '''
+    """
     Returns whether the given xy coordinates are on the primary screen or not.
-    '''
+    """
     if isinstance(x, Sequence):
         assert not isinstance(x, int)  # remove int annotation, mypy needs this
         if y is not None:
@@ -1928,30 +1921,29 @@ def onScreen(
     display_height: int
     display_width, display_height = size()
 
-    return (0 <= x < display_width and 0 <= y < display_height)
-# ------------------------------------------------------------------------------
+    return 0 <= x < display_width and 0 <= y < display_height
+    # --------------------------------------------------------------------------
 
 
 # ----- lookup function for MOUSEINPUT data ------------------------------------
 def _get_mouse_struct_data(
-    button: str,
-    method: Literal[0, 1, 2]
+    button: str, method: Literal[0, 1, 2]
 ) -> tuple[int | None, int]:
-    '''
+    """
     Translate a button string to INPUT struct data.
 
     Automatically detect the correct button if `MOUSE_PRIMARY` or
     `MOUSE_SECONDARY` are given as the button argument.
-    '''
+    """
     if not (0 <= method <= 2):
         raise ValueError(f"method index {method} is not a valid argument!")
 
     buttons_swapped: bool
     if button == MOUSE_PRIMARY:
-        buttons_swapped = (_get_system_metrics(_SM_SWAPBUTTON) != 0)
+        buttons_swapped = _get_system_metrics(_SM_SWAPBUTTON) != 0
         button = MOUSE_RIGHT if buttons_swapped else MOUSE_LEFT
     elif button == MOUSE_SECONDARY:
-        buttons_swapped = (_get_system_metrics(_SM_SWAPBUTTON) != 0)
+        buttons_swapped = _get_system_metrics(_SM_SWAPBUTTON) != 0
         button = MOUSE_LEFT if buttons_swapped else MOUSE_RIGHT
 
     event_value: int | None
@@ -1959,47 +1951,40 @@ def _get_mouse_struct_data(
     mouseData: int = _MOUSE_MAPPING_DATA.get(button, 0)
 
     return event_value, mouseData
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- normalize key name to lower case if not shifiting ----------------------
-def _normalize_key(
-    key: str,
-    *,
-    auto_shift: bool = False
-) -> str:
-    '''
+def _normalize_key(key: str, *, auto_shift: bool = False) -> str:
+    """
     return a lowercase representation of `key` if key is longer than one
     character or automatic shifting is disabled (default).
-    '''
+    """
     return key.lower() if (len(key) > 1 or not auto_shift) else key
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- calculate step target for a single steps -------------------------------
-def _add_one_step(
-    current: int,
-    target: int,
-    remaining_steps: int
-) -> int:
-    '''
+def _add_one_step(current: int, target: int, remaining_steps: int) -> int:
+    """
     Calculate a target distance in a lazy way, providing self-healing to
     disturbed movement.
-    '''
+    """
     if remaining_steps <= 1:
         return target
     step_factor: float = (remaining_steps - 1) / remaining_steps
     return round(target - ((target - current) * step_factor))
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ------------------------------------------------------------------------------
 # ----- Mouse acceleration and Ehanced Pointer Precision storage singleton -----
 class __MouseSpeedSettings:
-    '''
+    """
     Allows controlled storage of Windows Enhanced Pointer Precision and mouse
     speed settings.
-    '''
+    """
+
     __context_manager_epp: ClassVar[int | None] = None
     __context_manager_speed: ClassVar[int | None] = None
     __context_manager_count: ClassVar[int] = 0
@@ -2012,22 +1997,17 @@ class __MouseSpeedSettings:
     @classmethod
     def get_manual_mouse_settings(cls) -> tuple[int | None, int | None]:
         with cls.__manual_lock:
-            return (
-                cls.__manual_store_epp,
-                cls.__manual_store_speed
-            )
-    # --------------------------------------------------------------------------
+            return (cls.__manual_store_epp, cls.__manual_store_speed)
+        # ----------------------------------------------------------------------
 
     @classmethod
     def set_manual_mouse_settings(
-        cls,
-        enhanced_pointer_precision_enabled: int,
-        mouse_speed: int
+        cls, enhanced_pointer_precision_enabled: int, mouse_speed: int
     ) -> None:
         with cls.__manual_lock:
             cls.__manual_store_epp = enhanced_pointer_precision_enabled
             cls.__manual_store_speed = mouse_speed
-    # --------------------------------------------------------------------------
+        # ----------------------------------------------------------------------
 
     @classmethod
     def get_ctxtmgr_mouse_settings(cls) -> tuple[int | None, int | None]:
@@ -2041,13 +2021,11 @@ class __MouseSpeedSettings:
             cls.__context_manager_epp = None
             cls.__context_manager_speed = None
             return (epp_enabled, mouse_speed)
-    # --------------------------------------------------------------------------
+        # ----------------------------------------------------------------------
 
     @classmethod
     def set_ctxtmgr_mouse_settings(
-        cls,
-        enhanced_pointer_precision_enabled: int,
-        mouse_speed: int
+        cls, enhanced_pointer_precision_enabled: int, mouse_speed: int
     ) -> None:
         with cls.__context_manager_lock:
             cls.__context_manager_count += 1
@@ -2057,17 +2035,16 @@ class __MouseSpeedSettings:
                 return
             cls.__context_manager_epp = enhanced_pointer_precision_enabled
             cls.__context_manager_speed = mouse_speed
-# ------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------
+        # ----------------------------------------------------------------------
 
 
 # ----- Temporarily disable Enhanced Pointer Precision -------------------------
 @contextmanager
 def _no_mouse_acceleration() -> Generator[None, None, None]:
-    '''
+    """
     Context manager that allows temporarily disabling Windows Enhanced Pointer
     Precision on enter and restoring the previous setting on exit.
-    '''
+    """
     th1: int
     th2: int
     precision: int | None
@@ -2091,29 +2068,29 @@ def _no_mouse_acceleration() -> Generator[None, None, None]:
             _set_mouse_parameters(th1, th2, precision)
         if speed is not None:
             _set_mouse_speed(speed)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- manually store current enhanced pointer precision setting --------------
 def store_mouse_acceleration_settings() -> None:
-    '''
+    """
     Manually save the current Windows Enhanced Pointer Precision setting so
     that it can be restored later with `restore_mouse_acceleration_settings()`.
-    '''
+    """
     precision: int
     _, _, precision = _get_mouse_parameters()
     speed: int = _get_mouse_speed()
     __MouseSpeedSettings.set_manual_mouse_settings(precision, speed)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- manually restore current enhanced pointer precision setting ------------
 def restore_mouse_acceleration_settings() -> None:
-    '''
+    """
     Manually restore the current Windows Enhanced Pointer Precision setting to
     what it was beforehand when it was saved with
     `store_mouse_acceleration_settings()`.
-    '''
+    """
     precision: int | None
     speed: int | None
     precision, speed = __MouseSpeedSettings.get_manual_mouse_settings()
@@ -2127,12 +2104,13 @@ def restore_mouse_acceleration_settings() -> None:
     th1, th2, _ = _get_mouse_parameters()
     _set_mouse_parameters(th1, th2, precision)
     _set_mouse_speed(speed)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ==============================================================================
 # ===== Main Mouse Functions ===================================================
 # ==============================================================================
+
 
 # ----- mouseDown --------------------------------------------------------------
 @_genericPyDirectInputChecks
@@ -2150,7 +2128,7 @@ def mouseDown(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Press down mouse button `button`.
 
     If `x` or `y` are given and not None, then the mouse will move the
@@ -2174,7 +2152,7 @@ def mouseDown(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     # TODO: bounding box check for valid position
     if x is not None or y is not None:
         moveTo(
@@ -2196,17 +2174,14 @@ def mouseDown(
 
     if not event_value:
         raise ValueError(
-            f'Invalid button argument! '
+            f"Invalid button argument! "
             f'Expected "{MOUSE_LEFT}", "{MOUSE_RIGHT}", "{MOUSE_MIDDLE}", '
             f'"{MOUSE_BUTTON4}", "{MOUSE_BUTTON5}", "{MOUSE_PRIMARY}" or '
             f'"{MOUSE_SECONDARY}"; got "{button}" instead!'
         )
 
-    _send_input(_create_mouse_input(
-        mouseData=mouseData,
-        dwFlags=event_value
-    ))
-# ------------------------------------------------------------------------------
+    _send_input(_create_mouse_input(mouseData=mouseData, dwFlags=event_value))
+    # --------------------------------------------------------------------------
 
 
 # ----- mouseUp ----------------------------------------------------------------
@@ -2225,7 +2200,7 @@ def mouseUp(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Lift up mouse button `button`.
 
     If `x` or `y` are given and not None, then the mouse will move the
@@ -2249,7 +2224,7 @@ def mouseUp(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     # TODO: bounding box check for valid position
     if x is not None or y is not None:
         moveTo(
@@ -2271,17 +2246,14 @@ def mouseUp(
 
     if not event_value:
         raise ValueError(
-            f'Invalid button argument! '
+            "Invalid button argument! "
             f'Expected "{MOUSE_LEFT}", "{MOUSE_RIGHT}", "{MOUSE_MIDDLE}", '
             f'"{MOUSE_BUTTON4}", "{MOUSE_BUTTON5}", "{MOUSE_PRIMARY}" or '
             f'"{MOUSE_SECONDARY}"; got "{button}" instead!'
         )
 
-    _send_input(_create_mouse_input(
-        mouseData=mouseData,
-        dwFlags=event_value
-    ))
-# ------------------------------------------------------------------------------
+    _send_input(_create_mouse_input(mouseData=mouseData, dwFlags=event_value))
+    # --------------------------------------------------------------------------
 
 
 # ----- click ------------------------------------------------------------------
@@ -2302,7 +2274,7 @@ def click(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Click mouse button `button` (combining press down and lift up).
 
     If `x` or `y` are given and not None, then the mouse will move the
@@ -2331,7 +2303,7 @@ def click(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     # TODO: bounding box check for valid position
     if x is not None or y is not None:
         moveTo(
@@ -2353,7 +2325,7 @@ def click(
 
     if not event_value:
         raise ValueError(
-            f'Invalid button argument! '
+            f"Invalid button argument! "
             f'Expected "{MOUSE_LEFT}", "{MOUSE_RIGHT}", "{MOUSE_MIDDLE}", '
             f'"{MOUSE_BUTTON4}", "{MOUSE_BUTTON5}", "{MOUSE_PRIMARY}" or '
             f'"{MOUSE_SECONDARY}"; got "{button}" instead!'
@@ -2365,11 +2337,10 @@ def click(
             _sleep(interval)
         apply_interval = True
 
-        _send_input(_create_mouse_input(
-            mouseData=mouseData,
-            dwFlags=event_value
-        ))
-# ------------------------------------------------------------------------------
+        _send_input(
+            _create_mouse_input(mouseData=mouseData, dwFlags=event_value)
+        )
+    # --------------------------------------------------------------------------
 
 
 # ----- leftClick --------------------------------------------------------------
@@ -2387,11 +2358,11 @@ def leftClick(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Click Left Mouse button.
 
     See `click()` for more information
-    '''
+    """
     click(
         x,
         y,
@@ -2407,7 +2378,7 @@ def leftClick(
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- rightClick -------------------------------------------------------------
@@ -2425,11 +2396,11 @@ def rightClick(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Click Right Mouse button.
 
     See `click()` for more information
-    '''
+    """
     click(
         x,
         y,
@@ -2445,7 +2416,7 @@ def rightClick(
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- middleClick ------------------------------------------------------------
@@ -2463,11 +2434,11 @@ def middleClick(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Click Middle Mouse button.
 
     See `click()` for more information
-    '''
+    """
     click(
         x,
         y,
@@ -2483,7 +2454,7 @@ def middleClick(
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- doubleClick ------------------------------------------------------------
@@ -2502,11 +2473,11 @@ def doubleClick(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Double click `button`.
 
     See `click()` for more information
-    '''
+    """
     click(
         x,
         y,
@@ -2522,7 +2493,7 @@ def doubleClick(
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- tripleClick ------------------------------------------------------------
@@ -2541,11 +2512,11 @@ def tripleClick(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Triple click `button`.
 
     See `click()` for more information
-    '''
+    """
     click(
         x,
         y,
@@ -2561,7 +2532,7 @@ def tripleClick(
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- scroll -----------------------------------------------------------------
@@ -2575,9 +2546,9 @@ def scroll(
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
-    interval: float = 0.0
+    interval: float = 0.0,
 ) -> None:
-    '''
+    """
     Vertically scroll mouse `clicks` number of times, waiting `interval`
     seconds between every scroll.
 
@@ -2596,7 +2567,7 @@ def scroll(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     direction: Literal[-1, 1]
     if clicks >= 0:
         direction = 1
@@ -2610,11 +2581,12 @@ def scroll(
             _sleep(interval)
         apply_interval = True
 
-        _send_input(_create_mouse_input(
-            mouseData=(direction * _WHEEL_DELTA),
-            dwFlags=_MOUSEEVENTF_WHEEL
-        ))
-# ------------------------------------------------------------------------------
+        _send_input(
+            _create_mouse_input(
+                mouseData=(direction * _WHEEL_DELTA), dwFlags=_MOUSEEVENTF_WHEEL
+            )
+        )
+    # --------------------------------------------------------------------------
 
 
 # ----- hscroll ----------------------------------------------------------------
@@ -2626,9 +2598,9 @@ def hscroll(
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
-    interval: float = 0.0
+    interval: float = 0.0,
 ) -> None:
-    '''
+    """
     Horizontally scroll mouse `clicks` number of times, waiting `interval`
     seconds between every scroll.
 
@@ -2647,7 +2619,7 @@ def hscroll(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     direction: Literal[-1, 1]
     if clicks >= 0:
         direction = 1
@@ -2661,11 +2633,13 @@ def hscroll(
             _sleep(interval)
         apply_interval = True
 
-        _send_input(_create_mouse_input(
-            mouseData=(direction * _WHEEL_DELTA),
-            dwFlags=_MOUSEEVENTF_HWHEEL
-        ))
-# ------------------------------------------------------------------------------
+        _send_input(
+            _create_mouse_input(
+                mouseData=(direction * _WHEEL_DELTA),
+                dwFlags=_MOUSEEVENTF_HWHEEL,
+            )
+        )
+    # --------------------------------------------------------------------------
 
 
 # ----- scroll alias -----------------------------------------------------------
@@ -2688,7 +2662,7 @@ def moveTo(
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Move the mouse to an absolute(*) postion indicated by the arguments of
     `x` and `y`. The coordinates 0,0 represent the top left pixel of the
     primary monitor.
@@ -2747,7 +2721,7 @@ def moveTo(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot`, `tween` are currently unsupported.
-    '''
+    """
     # TODO: bounding box check for valid position
     final_x: int
     final_y: int
@@ -2762,7 +2736,7 @@ def moveTo(
         # other axis
         final_x, final_y = position(x, y)
 
-    dwFlags: int = (_MOUSEEVENTF_MOVE | _MOUSEEVENTF_ABSOLUTE)
+    dwFlags: int = _MOUSEEVENTF_MOVE | _MOUSEEVENTF_ABSOLUTE
     if virtual:
         dwFlags |= _MOUSEEVENTF_VIRTUALDESK
 
@@ -2777,7 +2751,7 @@ def moveTo(
 
         time_segments: int = min(
             int((final_time - _time()) / MINIMUM_SLEEP_ACTUAL),
-            max(abs(final_x - current_x), abs(final_y - current_y))
+            max(abs(final_x - current_x), abs(final_y - current_y)),
         )
         if time_segments <= 1:
             keep_looping = False
@@ -2791,10 +2765,7 @@ def moveTo(
             continue
 
         x, y = _to_windows_coordinates(x, y, virtual=virtual)
-        _send_input(_create_mouse_input(
-            dx=x, dy=y,
-            dwFlags=dwFlags
-        ))
+        _send_input(_create_mouse_input(dx=x, dy=y, dwFlags=dwFlags))
 
     # After-care: Did Windows move the cursor correctly?
     # If not, attempt to fix off-by-one errors.
@@ -2809,9 +2780,9 @@ def moveTo(
             _pause=False,  # don't add an additional pause
             relative=True,
             virtual=virtual,
-            disable_mouse_acceleration=disable_mouse_acceleration
+            disable_mouse_acceleration=disable_mouse_acceleration,
         )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- moveRel ----------------------------------------------------------------
@@ -2826,9 +2797,9 @@ def moveRel(
     relative: bool = False,
     *,
     virtual: bool = False,
-    disable_mouse_acceleration: bool = False
+    disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Move the mouse a relative amount determined by `xOffset` and `yOffset`.
 
     If `duration` is floating point number greater than 0, then this function
@@ -2881,7 +2852,7 @@ def moveRel(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot`, `tween` are currently unsupported.
-    '''
+    """
     # TODO: bounding box check for valid position
     if xOffset is None:
         xOffset = 0
@@ -2896,7 +2867,7 @@ def moveRel(
             logScreenshot=logScreenshot,
             _pause=False,  # don't add an additional pause
             relative=True,
-            virtual=virtual
+            virtual=virtual,
         )
     else:
         current_x: int = 0
@@ -2912,7 +2883,7 @@ def moveRel(
 
             time_segments: int = min(
                 int((final_time - _time()) / MINIMUM_SLEEP_ACTUAL),
-                max(xOffset - current_x, yOffset - current_y)
+                max(xOffset - current_x, yOffset - current_y),
             )
             if time_segments <= 1:
                 keep_looping = False
@@ -2925,8 +2896,7 @@ def moveRel(
                 continue
 
             input_struct: _INPUT = _create_mouse_input(
-                dx=x, dy=y,
-                dwFlags=_MOUSEEVENTF_MOVE
+                dx=x, dy=y, dwFlags=_MOUSEEVENTF_MOVE
             )
             current_x += x
             current_y += y
@@ -2952,7 +2922,7 @@ def moveRel(
                     _send_input(input_struct)
             else:
                 _send_input(input_struct)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- move alias -------------------------------------------------------------
@@ -2976,9 +2946,9 @@ def dragTo(
     relative: bool = False,
     virtual: bool = False,
     attempt_pixel_perfect: bool = False,
-    disable_mouse_acceleration: bool = False
+    disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Press and hold a mouse button while moving to the target coordinates.
 
     See `moveTo` for more information on most arguments.
@@ -2997,7 +2967,7 @@ def dragTo(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot`, `tween` are currently unsupported.
-    '''
+    """
     # TODO: bounding box check for valid position
     if button is None:
         button = MOUSE_PRIMARY
@@ -3013,11 +2983,11 @@ def dragTo(
         relative=relative,
         virtual=virtual,
         attempt_pixel_perfect=attempt_pixel_perfect,
-        disable_mouse_acceleration=disable_mouse_acceleration
+        disable_mouse_acceleration=disable_mouse_acceleration,
     )
     if mouseDownUp:
         mouseUp(button=button, _pause=False, virtual=virtual)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- dragRel ----------------------------------------------------------------
@@ -3034,9 +3004,9 @@ def dragRel(
     *,
     relative: bool = False,
     virtual: bool = False,
-    disable_mouse_acceleration: bool = False
+    disable_mouse_acceleration: bool = False,
 ) -> None:
-    '''
+    """
     Press and hold a mouse button while moving a relative distance
 
     See `moveRel` for more information on most arguments.
@@ -3055,7 +3025,7 @@ def dragRel(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot`, `tween` are currently unsupported.
-    '''
+    """
     # TODO: bounding box check for valid position
     if button is None:
         button = MOUSE_PRIMARY
@@ -3073,7 +3043,7 @@ def dragRel(
     )
     if mouseDownUp:
         mouseUp(button=button, _pause=False, virtual=virtual)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- drag alias -------------------------------------------------------------
@@ -3085,16 +3055,18 @@ drag = dragRel
 # ===== Keyboard Functions =====================================================
 # ==============================================================================
 
+
 # ----- isValidKey -------------------------------------------------------------
 def isValidKey(key: str) -> bool:
-    '''
+    """
     Returns true if key name `key` can be translated into a valid scan code.
-    '''
+    """
     return key in KEYBOARD_MAPPING
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ===== scancode functions =====================================================
+
 
 # ----- scancode_keyDown -------------------------------------------------------
 @_genericPyDirectInputChecks
@@ -3103,9 +3075,9 @@ def scancode_keyDown(
     logScreenshot: None = None,
     _pause: bool = True,
     *,
-    auto_shift: bool = False
+    auto_shift: bool = False,
 ) -> bool:
-    '''
+    """
     Press down key corresponding to `scancodes`.
 
     The actually pressed key will depend on your system keyboard layout.
@@ -3124,7 +3096,7 @@ def scancode_keyDown(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     scancodes_sequence: ScancodeSequence
     if isinstance(scancodes, int):
         scancodes_sequence = ScancodeSequence([scancodes])
@@ -3140,21 +3112,22 @@ def scancode_keyDown(
     expectedEvents: int = 0
 
     for scancode in scancodes_sequence:
-
         if auto_shift and scancode & _OFFSET_SHIFTKEY:
-            input_structs += [_create_keyboard_input(
-                wScan=_SHIFT_SCANCODE,
-                dwFlags=keybdFlags
-            )]
+            input_structs += [
+                _create_keyboard_input(
+                    wScan=_SHIFT_SCANCODE, dwFlags=keybdFlags
+                )
+            ]
             expectedEvents += 1
 
         scancode = scancode & 0xFFFF
 
         extendedFlag = _KEYEVENTF_EXTENDEDKEY if scancode >= 0xE000 else 0
-        input_structs += [_create_keyboard_input(
-            wScan=scancode,
-            dwFlags=keybdFlags | extendedFlag
-        )]
+        input_structs += [
+            _create_keyboard_input(
+                wScan=scancode, dwFlags=keybdFlags | extendedFlag
+            )
+        ]
         expectedEvents += 1
 
     insertedEvents += _send_input(input_structs)
@@ -3163,7 +3136,7 @@ def scancode_keyDown(
     # input stream
     # https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput#return-value
     return insertedEvents == expectedEvents
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- scancode_keyUp ---------------------------------------------------------
@@ -3173,9 +3146,9 @@ def scancode_keyUp(
     logScreenshot: None = None,
     _pause: bool = True,
     *,
-    auto_shift: bool = False
+    auto_shift: bool = False,
 ) -> bool:
-    '''
+    """
     Release key corresponding to `scancodes`.
 
     The actually pressed key will depend on your system keyboard layout.
@@ -3194,7 +3167,7 @@ def scancode_keyUp(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     scancodes_sequence: ScancodeSequence
     if isinstance(scancodes, int):
         scancodes_sequence = ScancodeSequence([scancodes])
@@ -3210,26 +3183,27 @@ def scancode_keyUp(
     expectedEvents: int = 0
 
     for scancode in scancodes_sequence:
-
         if auto_shift and scancode & _OFFSET_SHIFTKEY:
-            input_structs += [_create_keyboard_input(
-                wScan=_SHIFT_SCANCODE,
-                dwFlags=keybdFlags
-            )]
+            input_structs += [
+                _create_keyboard_input(
+                    wScan=_SHIFT_SCANCODE, dwFlags=keybdFlags
+                )
+            ]
             expectedEvents += 1
 
         scancode = scancode & 0xFFFF
 
         extendedFlag = _KEYEVENTF_EXTENDEDKEY if scancode >= 0xE000 else 0
-        input_structs += [_create_keyboard_input(
-            wScan=scancode & 0xFFFF,
-            dwFlags=keybdFlags | extendedFlag
-        )]
+        input_structs += [
+            _create_keyboard_input(
+                wScan=scancode & 0xFFFF, dwFlags=keybdFlags | extendedFlag
+            )
+        ]
         expectedEvents += 1
 
     insertedEvents += _send_input(input_structs)
     return insertedEvents == expectedEvents
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- _helper_scancode_press -------------------------------------------------
@@ -3237,28 +3211,24 @@ def _helper_scancode_press(
     scancodes: ScancodeTypes,
     duration: float = 0.0,
     _pause: bool = True,
-    auto_shift: bool = False
+    auto_shift: bool = False,
 ) -> bool:
-    '''
+    """
     Press `scancode`, wait for `duration` seconds, release `scancode`.
 
     Return `True` if complete press was successful.
-    '''
+    """
     downed: bool = scancode_keyDown(
-        scancodes,
-        _pause=_pause,
-        auto_shift=auto_shift
+        scancodes, _pause=_pause, auto_shift=auto_shift
     )
     _sleep(duration)
     upped: bool = scancode_keyUp(
-        scancodes,
-        _pause=_pause,
-        auto_shift=auto_shift
+        scancodes, _pause=_pause, auto_shift=auto_shift
     )
     # Count key press as complete if key was "downed" and "upped"
     # successfully
     return bool(downed and upped)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- scancode_press ---------------------------------------------------------
@@ -3273,9 +3243,9 @@ def scancode_press(
     *,
     auto_shift: bool = False,
     delay: float = 0.0,
-    duration: float = 0.0
+    duration: float = 0.0,
 ) -> bool:
-    '''
+    """
     Press the sequence of `keys` for `presses` amount of times.
 
     The actually pressed key will depend on your system keyboard layout.
@@ -3307,7 +3277,7 @@ def scancode_press(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     scancodes_sequence: Sequence[ScancodeTypes]
     if isinstance(scancodes, int):
         scancodes_sequence = [ScancodeSequence([scancodes])]
@@ -3333,14 +3303,11 @@ def scancode_press(
             apply_delay = True
 
             completedPresses += _helper_scancode_press(
-                c,
-                duration,
-                _pause=False,
-                auto_shift=auto_shift
+                c, duration, _pause=False, auto_shift=auto_shift
             )
 
     return completedPresses == expectedPresses
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- scancode_hold ----------------------------------------------------------
@@ -3354,7 +3321,7 @@ def scancode_hold(
     auto_shift: bool = False,
     raise_on_failure: bool = False,
 ) -> Generator[None, None, None]:
-    '''
+    """
     Hold the sequence of keys corresponding to `scancodes` as long as the
     context manager is in scope (press upon entry, release upon exit).
 
@@ -3383,7 +3350,7 @@ def scancode_hold(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     scancodes_sequence: Sequence[ScancodeTypes]
     if isinstance(scancodes, int):
         scancodes_sequence = [ScancodeSequence([scancodes])]
@@ -3405,7 +3372,7 @@ def scancode_hold(
             upped += scancode_keyUp(c, _pause=False, auto_shift=auto_shift)
         if raise_on_failure and not (expectedPresses == downed == upped):
             raise PriorInputFailedException
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- scancode_hotkey --------------------------------------------------------
@@ -3418,7 +3385,7 @@ def scancode_hotkey(
     _pause: bool = True,
     auto_shift: bool = True,
 ) -> bool:
-    '''
+    """
     Press down buttons in order they are specified as arguments,
     releasing them in reverse order, e.g. 0x1D, 0x2E will first press
     Control, then C and release C before releasing Control.
@@ -3442,7 +3409,7 @@ def scancode_hotkey(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     expectedPresses: int = len(args)
     downed: int = 0
     upped: int = 0
@@ -3465,11 +3432,12 @@ def scancode_hotkey(
 
         upped += scancode_keyUp(code, _pause=False, auto_shift=auto_shift)
 
-    return (expectedPresses == downed == upped)
-# ------------------------------------------------------------------------------
+    return expectedPresses == downed == upped
+    # --------------------------------------------------------------------------
 
 
 # ===== keyname functions ======================================================
+
 
 # ----- keyDown ----------------------------------------------------------------
 # Ignored parameters: logScreenshot
@@ -3478,9 +3446,9 @@ def keyDown(
     logScreenshot: None = None,
     _pause: bool = True,
     *,
-    auto_shift: bool = False
+    auto_shift: bool = False,
 ) -> bool:
-    '''
+    """
     Press down key corresponding to key name `key`.
 
     `key` will be interpreted as a keyboard key (US QWERTY).
@@ -3499,17 +3467,14 @@ def keyDown(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     scancode: ScancodeTypes | None = KEYBOARD_MAPPING.get(key)
     if scancode is None:
         return False
     return scancode_keyDown(
-        scancode,
-        logScreenshot,
-        _pause=_pause,
-        auto_shift=auto_shift
+        scancode, logScreenshot, _pause=_pause, auto_shift=auto_shift
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- keyUp ------------------------------------------------------------------
@@ -3519,9 +3484,9 @@ def keyUp(
     logScreenshot: None = None,
     _pause: bool = True,
     *,
-    auto_shift: bool = False
+    auto_shift: bool = False,
 ) -> bool:
-    '''
+    """
     Lift up key corresponding to key name `key`.
 
     `key` will be interpreted as a keyboard key (US QWERTY).
@@ -3540,17 +3505,14 @@ def keyUp(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     scancode: ScancodeTypes | None = KEYBOARD_MAPPING.get(key)
     if scancode is None:
         return False
     return scancode_keyUp(
-        scancode,
-        logScreenshot,
-        _pause=_pause,
-        auto_shift=auto_shift
+        scancode, logScreenshot, _pause=_pause, auto_shift=auto_shift
     )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- _helper_press ----------------------------------------------------------
@@ -3558,20 +3520,20 @@ def _helper_press(
     key: str,
     duration: float = 0.0,
     _pause: bool = True,
-    auto_shift: bool = False
+    auto_shift: bool = False,
 ) -> bool:
-    '''
+    """
     Press `key`, wait for `duration` seconds, release `key`.
 
     Return `True` if complete press was successful.
-    '''
+    """
     downed: bool = keyDown(key, _pause=_pause, auto_shift=auto_shift)
     _sleep(duration)
     upped: bool = keyUp(key, _pause=_pause, auto_shift=auto_shift)
     # Count key press as complete if key was "downed" and "upped"
     # successfully
     return bool(downed and upped)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- press ------------------------------------------------------------------
@@ -3586,9 +3548,9 @@ def press(
     *,
     auto_shift: bool = False,
     delay: float = 0.0,
-    duration: float = 0.0
+    duration: float = 0.0,
 ) -> bool:
-    '''
+    """
     Press the sequence of `keys` for `presses` amount of times.
 
     `keys` will be interpreted as sequence of keyboard keys (US QWERTY).
@@ -3621,7 +3583,7 @@ def press(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     if isinstance(keys, str):
         keys = [keys]  # If keys is 'enter', convert it to ['enter'].
     keys = [_normalize_key(key, auto_shift=auto_shift) for key in keys]
@@ -3643,14 +3605,11 @@ def press(
             apply_delay = True
 
             completedPresses += _helper_press(
-                k,
-                duration,
-                _pause=False,
-                auto_shift=auto_shift
+                k, duration, _pause=False, auto_shift=auto_shift
             )
 
     return completedPresses == expectedPresses
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- hold -------------------------------------------------------------------
@@ -3664,7 +3623,7 @@ def hold(
     auto_shift: bool = False,
     raise_on_failure: bool = False,
 ) -> Generator[None, None, None]:
-    '''
+    """
     Hold the sequence of keys corresponding to key names in `keys` as long as
     the context manager is in scope (press upon entry, release upon exit).
 
@@ -3694,7 +3653,7 @@ def hold(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     if isinstance(keys, str):
         keys = [keys]  # make single element into iterable
     keys = [_normalize_key(key, auto_shift=auto_shift) for key in keys]
@@ -3712,7 +3671,7 @@ def hold(
             upped += keyUp(k, auto_shift=auto_shift)
         if raise_on_failure and not (expectedPresses == downed == upped):
             raise PriorInputFailedException
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- typewrite --------------------------------------------------------------
@@ -3725,9 +3684,9 @@ def typewrite(
     *,
     auto_shift: bool = False,
     delay: float = 0.0,
-    duration: float = 0.0
+    duration: float = 0.0,
 ) -> None:
-    '''
+    """
     Break down `message` into a single character key sequence and press each
     key one by one.
 
@@ -3761,7 +3720,7 @@ def typewrite(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
 
     apply_interval: bool = False
     for key in message:
@@ -3774,9 +3733,9 @@ def typewrite(
             _pause=False,
             auto_shift=auto_shift,
             delay=delay,
-            duration=duration
+            duration=duration,
         )
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- typewrite alias --------------------------------------------------------
@@ -3796,7 +3755,7 @@ def hotkey(
     _pause: bool = True,
     auto_shift: bool = True,
 ) -> None:
-    '''
+    """
     Press down buttons in order they are specified as arguments,
     releasing them in reverse order, e.g. 'ctrl', 'c' will first press
     Control, then C and release C before releasing Control.
@@ -3820,7 +3779,7 @@ def hotkey(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     apply_interval: bool = False
     for key in args:
         if apply_interval:
@@ -3838,19 +3797,18 @@ def hotkey(
         apply_interval = True
 
         keyUp(key, _pause=False, auto_shift=auto_shift)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ===== unicode functions ======================================================
 
+
 # ----- unicode_charDown -------------------------------------------------------
 @_genericPyDirectInputChecks
 def unicode_charDown(
-    char: str,
-    logScreenshot: None = None,
-    _pause: bool = True
+    char: str, logScreenshot: None = None, _pause: bool = True
 ) -> bool:
-    '''
+    """
     Send Unicode character(s) `char` to currently focused application as
     WM_KEYDOWN message.
 
@@ -3865,21 +3823,16 @@ def unicode_charDown(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
-    utf16surrogates: bytes = char.encode('utf-16be')
+    """
+    utf16surrogates: bytes = char.encode("utf-16be")
     codes: Sequence[int] = unpack(
-        f'>{len(utf16surrogates)//2}H',
-        utf16surrogates
+        f">{len(utf16surrogates)//2}H", utf16surrogates
     )
 
     keybdFlags: int = _KEYEVENTF_UNICODE
 
     input_structs: list[_INPUT] = [
-        _create_keyboard_input(
-            wVk=0,
-            wScan=charcode,
-            dwFlags=keybdFlags
-        )
+        _create_keyboard_input(wVk=0, wScan=charcode, dwFlags=keybdFlags)
         for charcode in codes
     ]
     # Init event tracking
@@ -3887,17 +3840,15 @@ def unicode_charDown(
     insertedEvents: int = _send_input(input_structs)
 
     return insertedEvents == expectedEvents
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- unicode_charUp ---------------------------------------------------------
 @_genericPyDirectInputChecks
 def unicode_charUp(
-    char: str,
-    logScreenshot: None = None,
-    _pause: bool = True
+    char: str, logScreenshot: None = None, _pause: bool = True
 ) -> bool:
-    '''
+    """
     Send Unicode character(s) `char` to currently focused application as
     WM_KEYUP message.
 
@@ -3912,21 +3863,16 @@ def unicode_charUp(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
-    utf16surrogates: bytes = char.encode('utf-16be')
+    """
+    utf16surrogates: bytes = char.encode("utf-16be")
     codes: Sequence[int] = unpack(
-        f'>{len(utf16surrogates)//2}H',
-        utf16surrogates
+        f">{len(utf16surrogates)//2}H", utf16surrogates
     )
 
     keybdFlags: int = _KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP
 
     input_structs: list[_INPUT] = [
-        _create_keyboard_input(
-            wVk=0,
-            wScan=charcode,
-            dwFlags=keybdFlags
-        )
+        _create_keyboard_input(wVk=0, wScan=charcode, dwFlags=keybdFlags)
         for charcode in codes
     ]
     # Init event tracking
@@ -3934,7 +3880,7 @@ def unicode_charUp(
     insertedEvents: int = _send_input(input_structs)
 
     return insertedEvents == expectedEvents
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- _helper_unicode_press_char ---------------------------------------------
@@ -3943,11 +3889,11 @@ def _helper_unicode_press_char(
     duration: float = 0.0,
     _pause: bool = True,
 ) -> bool:
-    '''
+    """
     Press `key`, wait for `duration` seconds, release `key`.
 
     Return `True` if complete press was successful.
-    '''
+    """
     downed: bool = unicode_charDown(char, _pause=_pause)
     _sleep(duration)
     upped: bool = unicode_charUp(char, _pause=_pause)
@@ -3966,9 +3912,9 @@ def unicode_press(
     _pause: bool = True,
     *,
     delay: float = 0.0,
-    duration: float = 0.0
+    duration: float = 0.0,
 ) -> bool:
-    '''
+    """
     Press the sequence of `chars` for `presses` amount of times.
 
     `chars` will be interpreted as a sequence of Unicode characters
@@ -3995,7 +3941,7 @@ def unicode_press(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     if isinstance(chars, str):
         chars = [chars]
 
@@ -4022,7 +3968,7 @@ def unicode_press(
             )
 
     return completedPresses == expectedPresses
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- unicode_hold -----------------------------------------------------------
@@ -4035,7 +3981,7 @@ def unicode_hold(
     *,
     raise_on_failure: bool = False,
 ) -> Generator[None, None, None]:
-    '''
+    """
     Hold the sequence of "keys" corresponding to unicode characters in `chars`
     as long as the context manager is in scope (press upon entry,
     release upon exit).
@@ -4060,7 +4006,7 @@ def unicode_hold(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     if isinstance(chars, str):
         chars = [chars]  # make single element into iterable
 
@@ -4077,7 +4023,7 @@ def unicode_hold(
             upped += unicode_charUp(c, _pause=False)
         if raise_on_failure and not (expectedPresses == downed == upped):
             raise PriorInputFailedException
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- unicode_typewrite ------------------------------------------------------
@@ -4089,9 +4035,9 @@ def unicode_typewrite(
     _pause: bool = True,
     *,
     delay: float = 0.0,
-    duration: float = 0.0
+    duration: float = 0.0,
 ) -> None:
-    '''
+    """
     Break down `message` into characters and press them one by one.
 
     `message` will be interpreted as a sequence of Unicode characters
@@ -4118,7 +4064,7 @@ def unicode_typewrite(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     apply_interval: bool = False
     for char in message:
         if apply_interval:
@@ -4126,7 +4072,7 @@ def unicode_typewrite(
         apply_interval = True
 
         unicode_press(char, _pause=False, delay=delay, duration=duration)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ----- unicode_typewrite alias ------------------------------------------------
@@ -4143,7 +4089,7 @@ def unicode_hotkey(
     logScreenshot: None = None,
     _pause: bool = True,
 ) -> None:
-    '''
+    """
     Press down buttons in order they are specified as arguments,
     releasing them in reverse order.
 
@@ -4167,7 +4113,7 @@ def unicode_hotkey(
     ----------------------------------------------------------------------------
 
     NOTE: `logScreenshot` is currently unsupported.
-    '''
+    """
     apply_interval: bool = False
     for char in args:
         if apply_interval:
@@ -4185,7 +4131,8 @@ def unicode_hotkey(
         apply_interval = True
 
         unicode_charUp(char, _pause=False)
-# ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
 
 # ------------------------------------------------------------------------------
