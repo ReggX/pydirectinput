@@ -1,0 +1,14 @@
+[flake8]
+exclude = .git,.vscode,venv
+max-line-length = 100
+max-doc-length = 120
+indent-size = 4
+max-complexity = 15
+ignore =  # Errors
+          # continuation line under-indented for hanging indent
+          E121,
+          # multiple spaces after ':'
+          E241,
+          # Warnings
+          # line break before binary operator (choose either 503 or 504)
+          W503
