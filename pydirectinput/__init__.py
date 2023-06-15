@@ -11,29 +11,31 @@ import inspect
 import os
 import sys
 import time
-from collections.abc import Generator, Sequence
+from collections.abc import Generator
+from collections.abc import Sequence
 from contextlib import contextmanager
-from ctypes import (
-    POINTER,
-    Array,
-    Structure,
-    Union,
-    WinDLL,
-    c_bool,
-    c_int,
-    c_long,
-    c_short,
-    c_uint,
-    c_ulong,
-    c_ushort,
-    c_void_p,
-    pointer,
-    sizeof,
-    windll,
-)
-from math import ceil, floor, log10
+from ctypes import POINTER
+from ctypes import Array
+from ctypes import Structure
+from ctypes import Union
+from ctypes import WinDLL
+from ctypes import c_bool
+from ctypes import c_int
+from ctypes import c_long
+from ctypes import c_short
+from ctypes import c_uint
+from ctypes import c_ulong
+from ctypes import c_ushort
+from ctypes import c_void_p
+from ctypes import pointer
+from ctypes import sizeof
+from ctypes import windll
+from math import ceil
+from math import floor
+from math import log10
 from struct import unpack
 from threading import Lock
+
 
 # Windows-only
 if sys.platform != "win32":
@@ -44,8 +46,13 @@ if sys.platform != "win32":
 
 # Python 3.7 or higher
 if sys.version_info >= (3, 7):
-    from typing import Any, Callable, TypeVar, TYPE_CHECKING
+    # native imports
+    from typing import TYPE_CHECKING
+    from typing import Any
+    from typing import Callable
+    from typing import TypeVar
     from typing import cast as hint_cast  # prevent confusion with ctypes.cast
+    from typing import overload
 else:
     raise ImportError(
         "This module is strictly typed and can't be used in Python <3.7!"
@@ -54,15 +61,22 @@ else:
 # Python 3.8 or higher
 if sys.version_info >= (3, 8):
     # native imports
-    from typing import ClassVar, Final, Literal, Protocol
+    from typing import ClassVar
+    from typing import Final
+    from typing import Literal
+    from typing import Protocol
 else:
     # pip imports
-    from typing_extensions import ClassVar, Final, Literal, Protocol
+    from typing_extensions import ClassVar
+    from typing_extensions import Final
+    from typing_extensions import Literal
+    from typing_extensions import Protocol
 
 # Python 3.9 or higher
 if sys.version_info >= (3, 9):
     _list = list
 else:
+    # native imports
     from typing import List
 
     _list = List
@@ -70,10 +84,12 @@ else:
 # Python 3.10 or higher
 if sys.version_info >= (3, 10):
     # native imports
-    from typing import ParamSpec, TypeAlias
+    from typing import ParamSpec
+    from typing import TypeAlias
 else:
     # pip imports
-    from typing_extensions import ParamSpec, TypeAlias
+    from typing_extensions import ParamSpec
+    from typing_extensions import TypeAlias
 
 # # Python 3.11 or higher
 # if sys.version_info >= (3, 11):
@@ -86,6 +102,7 @@ else:
 if TYPE_CHECKING:
     # We have to get the private Pointer type from typeshed to make
     # the type checker shut up about the "incompatible types" error.
+    # native imports
     from ctypes import _Pointer  # pyright: ignore[reportPrivateUsage]
 
     _POINTER_TYPE = _Pointer
@@ -590,6 +607,16 @@ def update_MOUSEEVENT_mappings() -> None:
 
 
 update_MOUSEEVENT_mappings()  # call the function on import to set mappings.
+# ------------------------------------------------------------------------------
+
+
+# ----- MonitorFromPoint dwFlags constants -------------------------------------
+_MONITOR_DEFAULTTONULL: Final = 0x00000000  # c_ulong
+"""Returns NULL."""
+_MONITOR_DEFAULTTOPRIMARY: Final = 0x00000001  # c_ulong
+"""Returns a handle to the primary display monitor."""
+_MONITOR_DEFAULTTONEAREST: Final = 0x00000002  # c_ulong
+"""Returns a handle to the display monitor that is nearest to the point."""
 # ------------------------------------------------------------------------------
 
 
@@ -1190,6 +1217,75 @@ def _get_system_metrics(nIndex: int) -> int:
     # --------------------------------------------------------------------------
 
 
+# ----- MonitorFromPoint Declaration -----------------------------------------------
+class _MonitorFromPointType(Protocol):
+    argtypes: tuple[type[_POINT], type[c_ulong]]
+    restype: type[c_void_p]  # actually a handle (HMONITOR)
+
+    def __call__(
+        self,
+        pt: _POINT,
+        dwFlags: c_ulong | int,
+    ) -> int | None:  # c_ulong
+        ...
+
+
+_MonitorFromPoint = hint_cast(_MonitorFromPointType, _user32.MonitorFromPoint)
+"""
+----- MonitorFromPoint function (winuser.h) -----
+
+Retrieves the position of the mouse cursor, in screen coordinates.
+
+https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-monitorfrompoint
+
+----- Parameters -----
+
+[in] pt
+
+Type: POINT
+
+A POINT structure that specifies the point of interest in
+virtual-screen coordinates.
+
+[in] dwFlags
+
+Type: DWORD
+
+Determines the function's return value if the point is not contained within
+any display monitor.
+
+This parameter can be one of the following values.
+
+MONITOR_DEFAULTTONULL      0x00000000   Returns NULL.
+MONITOR_DEFAULTTOPRIMARY   0x00000001   Returns a handle to the primary
+                                        display monitor.
+MONITOR_DEFAULTTONEAREST   0x00000002   Returns a handle to the display monitor
+                                        that is nearest to the point.
+
+----- Return value -----
+
+If the point is contained by a display monitor, the return value is an
+HMONITOR handle to that display monitor.
+
+If the point is not contained by a display monitor, the return value depends
+on the value of dwFlags.
+"""
+_MonitorFromPoint.argtypes = (_POINT, c_ulong)
+_MonitorFromPoint.restype = c_void_p  # actually a handle (HMONITOR)
+
+
+def _monitor_from_point(x: int, y: int) -> int | None:
+    """
+    Abstraction layer over MonitorFromPoint (winuser.h)
+
+    See https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-monitorfrompoint
+    """
+    pt = _POINT()
+    pt.x, pt.y = x, y
+    return _MonitorFromPoint(pt, _MONITOR_DEFAULTTONULL)
+    # --------------------------------------------------------------------------
+
+
 # ----- GetCursorPos Declaration -----------------------------------------------
 class _GetCursorPosType(Protocol):
     argtypes: tuple[type[_POINTER_TYPE[_POINT]]]
@@ -1259,7 +1355,7 @@ def _get_cursor_pos() -> _POINT:
     # --------------------------------------------------------------------------
 
 
-# ----- SystemParametersInfoW Declaration -----------------------------------------------
+# ----- SystemParametersInfoW Declaration --------------------------------------
 class _SystemParametersInfoW_Type(Protocol):
     argtypes: tuple[type[c_uint], type[c_uint], type[c_void_p], type[c_uint]]
     restype: type[c_bool]
@@ -1851,7 +1947,7 @@ def position(
     """
     Return a postion tuple `(x, y)`.
 
-    If x and/or y argument(s) ar not given, use current mouse cursor coordinate
+    If x and/or y argument(s) are not given, use current mouse cursor coordinate
     instead.
     """
     cursor: _POINT = _get_cursor_pos()
@@ -1895,11 +1991,24 @@ def virtual_size() -> tuple[int, int, int, int]:
 
 
 # ----- are coordinates on primary monitor -------------------------------------
-def onScreen(
+@overload
+def on_primary_monitor(x: int | None = None, y: int | None = None) -> bool:
+    ...
+
+
+@overload
+def on_primary_monitor(x: tuple[int, int], y: None = None) -> bool:
+    ...
+
+
+def on_primary_monitor(
     x: int | tuple[int, int] | None = None, y: int | None = None
 ) -> bool:
     """
     Returns whether the given xy coordinates are on the primary screen or not.
+
+    If x and/or y argument(s) are not given, current mouse cursor coordinates
+    will be used instead.
     """
     if isinstance(x, Sequence):
         assert not isinstance(x, int)  # remove int annotation, mypy needs this
@@ -1922,6 +2031,52 @@ def onScreen(
     display_width, display_height = size()
 
     return 0 <= x < display_width and 0 <= y < display_height
+
+
+onScreen = on_primary_monitor
+# ------------------------------------------------------------------------------
+
+
+# ----- are coordinates on any monitor -----------------------------------------
+@overload
+def valid_screen_coordinates(
+    x: int | None = None,
+    y: int | None = None,
+) -> bool:
+    ...
+
+
+@overload
+def valid_screen_coordinates(x: tuple[int, int], y: None = None) -> bool:
+    ...
+
+
+def valid_screen_coordinates(
+    x: int | tuple[int, int] | None = None, y: int | None = None
+) -> bool:
+    """
+    Returns whether the given xy coordinates are on a real monitor or not.
+
+    If x and/or y argument(s) are not given, current mouse cursor coordinates
+    will be used instead.
+    """
+    if isinstance(x, Sequence):
+        assert not isinstance(x, int)  # remove int annotation, mypy needs this
+        if y is not None:
+            raise ValueError(
+                "onScreen() does not accept Sequence-types as first argument "
+                "if a second argument is also provided!"
+            )
+        try:
+            x, y = x[0], x[1]
+        except IndexError as e:
+            raise ValueError(
+                "onScreen() does not accept single element sequences "
+                "as first argument!"
+            ) from e
+
+    x, y = position(x, y)
+    return _monitor_from_point(x, y) is not None
     # --------------------------------------------------------------------------
 
 
@@ -3056,13 +3211,16 @@ drag = dragRel
 # ==============================================================================
 
 
-# ----- isValidKey -------------------------------------------------------------
-def isValidKey(key: str) -> bool:
+# ----- is_valid_key -------------------------------------------------------------
+def is_valid_key(key: str) -> bool:
     """
     Returns true if key name `key` can be translated into a valid scan code.
     """
     return key in KEYBOARD_MAPPING
-    # --------------------------------------------------------------------------
+
+
+isValidKey = is_valid_key
+# ------------------------------------------------------------------------------
 
 
 # ===== scancode functions =====================================================

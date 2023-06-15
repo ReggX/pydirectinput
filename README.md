@@ -116,8 +116,9 @@ pydirectinput.scancode_press(0x3B) # Press the F1 key.
 * Informational:
   - `position()`
   - `size()`
-  - `onScreen()`
-  - `isValidKey()`
+  - `on_primary_monitor()` / `onScreen()`
+  - `valid_screen_coordinates()`
+  - `is_valid_key()` / `isValidKey()`
 * Mouse input:
   - `moveTo()`
   - `move()` / `moveRel()`
