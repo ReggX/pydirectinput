@@ -1,5 +1,7 @@
 # pydirectinput_rgx
 
+[![PyPI version](https://badge.fury.io/py/pydirectinput-rgx.svg)](https://badge.fury.io/py/pydirectinput-rgx)
+
 Simple docstring-based documentation available here: https://reggx.github.io/pydirectinput_rgx/
 
 ---
