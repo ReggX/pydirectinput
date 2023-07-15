@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pydirectinput_rgx"
-version = "2.0.8"
+version = "2.0.9"
 authors = [{name = "ReggX", email = "dev@reggx.eu"}]
 license = {text = "MIT"}
 description = "Python mouse and keyboard input automation for Windows using Direct Input."

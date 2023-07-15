@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from contextlib import contextmanager
 from ctypes import POINTER
 from ctypes import Array
+from ctypes import LibraryLoader
 from ctypes import Structure
 from ctypes import Union
 from ctypes import WinDLL
@@ -29,7 +30,6 @@ from ctypes import c_ushort
 from ctypes import c_void_p
 from ctypes import pointer
 from ctypes import sizeof
-from ctypes import windll
 from math import ceil
 from math import floor
 from math import log10
@@ -120,6 +120,16 @@ else:
 
     _POINTER_TYPE = __pointer
 # ------------------------------------------------------------------------------
+
+
+# ==============================================================================
+# ===== Internal WinDLL instance ===============================================
+# ==============================================================================
+# Importing the cached WinDLL instance from ctypes directly would cause
+# conflicts with other packages that also use ctypes (notably pyautogui).
+# Therefore we create our own WinDLL instance and use that instead.
+windll: LibraryLoader[WinDLL] = LibraryLoader(WinDLL)
+
 
 # ==============================================================================
 # ===== Internal time source ===================================================
