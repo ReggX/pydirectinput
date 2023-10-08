@@ -74,12 +74,10 @@ else:
 
 # Python 3.9 or higher
 if sys.version_info >= (3, 9):
-    _list = list
+    List = list
 else:
     # native imports
     from typing import List
-
-    _list = List
 
 # Python 3.10 or higher
 if sys.version_info >= (3, 10):
@@ -1502,7 +1500,7 @@ def _set_mouse_speed(mouse_speed: int) -> bool:
 
 
 # ----- Special class for key extended scancode sequences ----------------------
-class ScancodeSequence(_list[int]):
+class ScancodeSequence(List[int]):
     """
     A special class with the sole purpose of representing extended scancode
     sequences that should be grouped together in a single INPUT array.
@@ -1950,6 +1948,74 @@ def _to_windows_coordinates(
     # --------------------------------------------------------------------------
 
 
+# ----- line coordinates based on Bresenham's line algorithm -------------------
+def _bresenham(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
+    """
+    Return a list of coordinates on the line from (x0, y0) to (x1, y1).
+    Start and end point are included in the result.
+
+    Based on Bresenham's line algorithm.
+    Using Petr Viktorin's implementation (MIT license)
+    https://github.com/encukou/bresenham
+    """
+
+    def gen() -> Generator[tuple[int, int], None, None]:
+        """
+        Yield integer coordinates on the line from (x0, y0) to (x1, y1).
+
+        Input coordinates should be integers.
+
+        The result will contain both the start and the end point.
+        """
+        dx = x1 - x0
+        dy = y1 - y0
+
+        xsign = 1 if dx > 0 else -1
+        ysign = 1 if dy > 0 else -1
+
+        dx = abs(dx)
+        dy = abs(dy)
+
+        if dx > dy:
+            xx, xy, yx, yy = xsign, 0, 0, ysign
+        else:
+            dx, dy = dy, dx
+            xx, xy, yx, yy = 0, ysign, xsign, 0
+
+        d = 2 * dy - dx
+        y = 0
+        for x in range(dx + 1):
+            yield x0 + x * xx + y * yx, y0 + x * xy + y * yy
+            if d >= 0:
+                y += 1
+                d -= 2 * dx
+            d += 2 * dy
+
+    return list(gen())
+    # --------------------------------------------------------------------------
+
+
+# ----- path function type alias -----------------------------------------------
+PathFunction: TypeAlias = (
+    "Callable[[int, int, int, int], list[tuple[int, int]]]"
+)
+# ------------------------------------------------------------------------------
+
+
+# ----- linear tweening function -----------------------------------------------
+def _linear(n: float) -> float:
+    """
+    Linear tweening function that clamps n between 0.0 and 1.0.
+    Otherwise returns n unchanged.
+    """
+    if n >= 1.0:
+        return 1.0
+    if n <= 0.0:
+        return 0.0
+    return n
+    # --------------------------------------------------------------------------
+
+
 # ----- get mouse position -----------------------------------------------------
 def position(
     x: int | float | None = None, y: int | float | None = None
@@ -2129,19 +2195,6 @@ def _normalize_key(key: str, *, auto_shift: bool = False) -> str:
     # --------------------------------------------------------------------------
 
 
-# ----- calculate step target for a single steps -------------------------------
-def _add_one_step(current: int, target: int, remaining_steps: int) -> int:
-    """
-    Calculate a target distance in a lazy way, providing self-healing to
-    disturbed movement.
-    """
-    if remaining_steps <= 1:
-        return target
-    step_factor: float = (remaining_steps - 1) / remaining_steps
-    return round(target - ((target - current) * step_factor))
-    # --------------------------------------------------------------------------
-
-
 # ------------------------------------------------------------------------------
 # ----- Mouse acceleration and Ehanced Pointer Precision storage singleton -----
 class __MouseSpeedSettings:
@@ -2284,12 +2337,13 @@ def mouseDown(
     y: int | None = None,
     button: str = MOUSE_PRIMARY,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2308,8 +2362,9 @@ def mouseDown(
     after the function finshes executing. The duration is set by the global
     variable `PAUSE`.
 
-    `duration`, `tween`, `relative`, `virtual`, `attempt_pixel_perfect`,
-    `disable_mouse_acceleration` are only relevant if x or y are given.
+    `duration`, `tween`, `relative`, `virtual`, `path_function`,
+    `attempt_pixel_perfect`, `disable_mouse_acceleration` are only relevant
+    if x or y are given.
     See `moveTo()` for further information.
 
     Raises `ValueError` if `button` is not a valid mouse button name.
@@ -2329,6 +2384,7 @@ def mouseDown(
             _pause=False,  # don't add an additional pause
             relative=relative,
             virtual=virtual,
+            path_function=path_function,
             attempt_pixel_perfect=attempt_pixel_perfect,
             disable_mouse_acceleration=disable_mouse_acceleration,
         )
@@ -2356,12 +2412,13 @@ def mouseUp(
     y: int | None = None,
     button: str = MOUSE_PRIMARY,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2380,8 +2437,9 @@ def mouseUp(
     after the function finshes executing. The duration is set by the global
     variable `PAUSE`.
 
-    `duration`, `tween`, `relative`, `virtual`, `attempt_pixel_perfect`,
-    `disable_mouse_acceleration` are only relevant if x or y are given.
+    `duration`, `tween`, `relative`, `virtual`, `path_function`,
+    `attempt_pixel_perfect`, `disable_mouse_acceleration` are only relevant
+    if x or y are given.
     See `moveTo()` for further information.
 
     Raises `ValueError` if `button` is not a valid mouse button name.
@@ -2401,6 +2459,7 @@ def mouseUp(
             _pause=False,  # don't add an additional pause
             relative=relative,
             virtual=virtual,
+            path_function=path_function,
             attempt_pixel_perfect=attempt_pixel_perfect,
             disable_mouse_acceleration=disable_mouse_acceleration,
         )
@@ -2430,12 +2489,13 @@ def click(
     interval: float = 0.0,
     button: str = MOUSE_PRIMARY,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2459,8 +2519,9 @@ def click(
     after the function finshes executing. The duration is set by the global
     variable `PAUSE`.
 
-    `duration`, `tween`, `relative`, `virtual`, `attempt_pixel_perfect`,
-    `disable_mouse_acceleration` are only relevant if x or y are given.
+    `duration`, `tween`, `relative`, `virtual`, `path_function`,
+    `attempt_pixel_perfect`, `disable_mouse_acceleration` are only relevant
+    if x or y are given.
     See `moveTo()` for further information.
 
     Raises `ValueError` if `button` is not a valid mouse button name.
@@ -2480,6 +2541,7 @@ def click(
             _pause=False,  # don't add an additional pause
             relative=relative,
             virtual=virtual,
+            path_function=path_function,
             attempt_pixel_perfect=attempt_pixel_perfect,
             disable_mouse_acceleration=disable_mouse_acceleration,
         )
@@ -2514,12 +2576,13 @@ def leftClick(
     y: int | None = None,
     interval: float = 0.0,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2540,6 +2603,7 @@ def leftClick(
         _pause=_pause,  # Keep _pause since this function has no input checks
         relative=relative,
         virtual=virtual,
+        path_function=path_function,
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
@@ -2552,12 +2616,13 @@ def rightClick(
     y: int | None = None,
     interval: float = 0.0,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2578,6 +2643,7 @@ def rightClick(
         _pause=_pause,  # Keep _pause since this function has no input checks
         relative=relative,
         virtual=virtual,
+        path_function=path_function,
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
@@ -2590,12 +2656,13 @@ def middleClick(
     y: int | None = None,
     interval: float = 0.0,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2616,6 +2683,7 @@ def middleClick(
         _pause=_pause,  # Keep _pause since this function has no input checks
         relative=relative,
         virtual=virtual,
+        path_function=path_function,
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
@@ -2629,12 +2697,13 @@ def doubleClick(
     interval: float = 0.0,
     button: str = MOUSE_LEFT,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2655,6 +2724,7 @@ def doubleClick(
         _pause=_pause,  # Keep _pause since this function has no input checks
         relative=relative,
         virtual=virtual,
+        path_function=path_function,
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
@@ -2668,12 +2738,13 @@ def tripleClick(
     interval: float = 0.0,
     button: str = MOUSE_LEFT,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2694,6 +2765,7 @@ def tripleClick(
         _pause=_pause,  # Keep _pause since this function has no input checks
         relative=relative,
         virtual=virtual,
+        path_function=path_function,
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
@@ -2812,18 +2884,17 @@ vscroll = scroll
 # ------------------------------------------------------------------------------
 
 
-# ----- moveTo -----------------------------------------------------------------
-@_genericPyDirectInputChecks
-def moveTo(
+# ----- absolute_mouse_move ----------------------------------------------------
+def _absolute_mouse_move(
     x: int | None = None,
     y: int | None = None,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
-    _pause: bool = True,
     relative: bool = False,
     *,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -2835,6 +2906,19 @@ def moveTo(
     If `duration` is floating point number greater than 0, then this function
     will automatically split the movement into microsteps instead of moving
     straight to the target position.
+
+    `tween` is a function that takes a floating point number between 0.0 and
+    1.0 and returns another floating point number between 0.0 and 1.0. The
+    returned number will be used to calculate the next position of the
+    mouse between the start and the end position based on the current duration.
+    The default tweening function is linear, which will move the mouse at a
+    constant speed. See the `pytweening` package for more tweening functions.
+
+    `path_function` is a function that takes the start and end coordinates of
+    the mouse movement (4 integers) and returns a list of coordinates (list of
+    tuples containting 2 integers each) that the mouse will move through.
+    The default path function is Bresenham's line algorithm, which will move
+    the mouse in a straight line.
 
     (*) If `relative` is set: Use absolute mouse movement to move the mouse
     cursor to the current mouse position offset by arguments `x` and `y`.
@@ -2873,7 +2957,7 @@ def moveTo(
     settings as long as no other movement is currently in progress.
     Additionally, the acceleration settings can be manually saved and
     restored with `store_mouse_acceleration_settings()` and
-    `restore_mouse_acceleration_settings()`. For your convinnience, the
+    `restore_mouse_acceleration_settings()`. For your convenience, the
     store function is automatically called during import to save your current
     setting. You can then call the restore function at any time.
 
@@ -2885,15 +2969,19 @@ def moveTo(
 
     ----------------------------------------------------------------------------
 
-    NOTE: `logScreenshot`, `tween` are currently unsupported.
+    NOTE: `logScreenshot` is currently unsupported.
     """
     # TODO: bounding box check for valid position
+    if tween is None:
+        tween = _linear
+    if path_function is None:
+        path_function = _bresenham
     final_x: int
     final_y: int
     current_x: int = 0
     current_y: int = 0
+    current_x, current_y = position()
     if relative:
-        current_x, current_y = position()
         final_x = current_x + (0 if x is None else x)
         final_y = current_y + (0 if y is None else y)
     else:
@@ -2905,32 +2993,54 @@ def moveTo(
     if virtual:
         dwFlags |= _MOUSEEVENTF_VIRTUALDESK
 
-    final_time: Final[float] = _time() + duration
-    keep_looping: bool = True
-
-    apply_duration: bool = False
-    while keep_looping:
-        if apply_duration:
-            _sleep(MINIMUM_SLEEP_IDEAL)  # sleep between iterations
-        apply_duration = True
-
-        time_segments: int = min(
-            int((final_time - _time()) / MINIMUM_SLEEP_ACTUAL),
-            max(abs(final_x - current_x), abs(final_y - current_y)),
-        )
-        if time_segments <= 1:
-            keep_looping = False
-
-        current_x, current_y = position()
-        x = _add_one_step(current_x, final_x, time_segments)
-        y = _add_one_step(current_y, final_y, time_segments)
-
-        if x == current_x and y == current_y:
-            # no change in movement for current segment ->try again
-            continue
-
-        x, y = _to_windows_coordinates(x, y, virtual=virtual)
+    if duration <= 0.0:
+        # no duration -> move mouse instantly
+        x, y = _to_windows_coordinates(final_x, final_y, virtual=virtual)
         _send_input(_create_mouse_input(dx=x, dy=y, dwFlags=dwFlags))
+
+    else:
+        start_time: Final[float] = _time()
+        final_time: Final[float] = start_time + duration
+        path: list[tuple[int, int]] = path_function(
+            current_x, current_y, final_x, final_y
+        )
+        path_length = len(path)
+        keep_looping: bool = True
+        sleep_duration: float = MINIMUM_SLEEP_IDEAL
+
+        apply_duration: bool = False
+        while keep_looping:
+            if apply_duration:
+                _sleep(sleep_duration)  # sleep between iterations
+            else:
+                apply_duration = True
+
+            _failSafeCheck()
+
+            current_time = _time()
+            if current_time >= final_time:
+                keep_looping = False
+                segment_count = path_length - 1
+            else:
+                time_ratio = (current_time - start_time) / duration
+                if time_ratio <= 0.0:
+                    time_ratio = 0.0
+                if time_ratio >= 1.0:
+                    time_ratio = 1.0
+                path_ratio = tween(time_ratio)
+                segment_count = int(path_length * path_ratio)
+                if segment_count >= path_length:
+                    segment_count = path_length - 1
+
+            current_x, current_y = position()
+            x, y = path[segment_count]
+
+            if x == current_x and y == current_y:
+                # no change in movement for current segment ->try again
+                continue
+
+            x, y = _to_windows_coordinates(x, y, virtual=virtual)
+            _send_input(_create_mouse_input(dx=x, dy=y, dwFlags=dwFlags))
 
     # After-care: Did Windows move the cursor correctly?
     # If not, attempt to fix off-by-one errors.
@@ -2938,11 +3048,10 @@ def moveTo(
         current_x, current_y = position()
         if current_x == final_x and current_y == final_y:
             return  # We are already pixel perfect, great!
-        moveRel(
-            xOffset=final_x - current_x,
-            yOffset=final_y - current_y,
+        _relative_mouse_move(
+            x=final_x - current_x,
+            y=final_y - current_y,
             duration=0.0,
-            _pause=False,  # don't add an additional pause
             relative=True,
             virtual=virtual,
             disable_mouse_acceleration=disable_mouse_acceleration,
@@ -2950,18 +3059,17 @@ def moveTo(
     # --------------------------------------------------------------------------
 
 
-# ----- moveRel ----------------------------------------------------------------
-@_genericPyDirectInputChecks
-def moveRel(
-    xOffset: int | None = None,
-    yOffset: int | None = None,
+# ----- relative_mouse_move ----------------------------------------------------
+def _relative_mouse_move(
+    x: int | None = None,
+    y: int | None = None,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
-    _pause: bool = True,
-    relative: bool = False,
+    relative: bool = True,
     *,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     disable_mouse_acceleration: bool = False,
 ) -> None:
     """
@@ -2971,9 +3079,29 @@ def moveRel(
     will automatically split the movement into microsteps instead of moving the
     complete distance instantly.
 
-    `relative` parameter decides how the movement is executed.
-    -> `False`: New postion is calculated and absolute movement is used.
-    -> `True`: Uses API relative movement (can be inconsistent)
+    `tween` is a function that takes a floating point number between 0.0 and
+    1.0 and returns another floating point number between 0.0 and 1.0. The
+    returned number will be used to calculate the next position of the
+    mouse between the start and the end position based on the current duration.
+    The default tweening function is linear, which will move the mouse at a
+    constant speed. See the `pytweening` package for more tweening functions.
+
+    `path_function` is a function that takes the start and end coordinates of
+    the mouse movement (4 integers) and returns a list of coordinates (list of
+    tuples containting 2 integers each) that the mouse will move through.
+    The default path function is Bresenham's line algorithm, which will move
+    the mouse in a straight line.
+
+    `relative` parameter decides how `xOffset` and `yOffset` are interpreted:
+
+    -> `False`: `xOffset` and `yOffset` are assumed to be absolute coordinates
+    and the offset to move will be calculated based on the current mouse
+    position. Movement is then performed using relative mouse movements
+    (can be inconsistent).
+
+    -> `True`: `xOffset` and `yOffset` are assumed to be relative coordinates
+    and the mouse will be moved by that amount. Movement is then performed
+    using relative mouse movements (can be inconsistent).
 
     The inconsistency issue can be solved by disabling Enhanced Pointer
     Precision and set Mouse speed to 10 in Windows mouse settings. Since users
@@ -3016,70 +3144,110 @@ def moveRel(
 
     ----------------------------------------------------------------------------
 
-    NOTE: `logScreenshot`, `tween` are currently unsupported.
+    NOTE: `logScreenshot` is are currently unsupported.
     """
     # TODO: bounding box check for valid position
-    if xOffset is None:
-        xOffset = 0
-    if yOffset is None:
-        yOffset = 0
+    if tween is None:
+        tween = _linear
+    if path_function is None:
+        path_function = _bresenham
+    current_x: int = 0
+    current_y: int = 0
+    next_x: int = 0
+    next_y: int = 0
     if not relative:
-        moveTo(
-            xOffset,
-            yOffset,
-            duration=duration,
-            tween=tween,
-            logScreenshot=logScreenshot,
-            _pause=False,  # don't add an additional pause
-            relative=True,
-            virtual=virtual,
-        )
+        current_x, current_y = position()
+        if x is None:
+            x = current_x
+        if y is None:
+            y = current_y
+        x = x - current_x
+        y = y - current_y
     else:
-        current_x: int = 0
-        current_y: int = 0
-        final_time: Final[float] = _time() + duration
+        if x is None:
+            x = 0
+        if y is None:
+            y = 0
+    current_x = 0
+    current_y = 0
+    final_x = x
+    final_y = y
+
+    if duration <= 0.0:
+        # no duration -> move mouse instantly
+        input_struct: _INPUT = _create_mouse_input(
+            dx=final_x, dy=final_y, dwFlags=_MOUSEEVENTF_MOVE
+        )
+        # When using MOUSEEVENTF_MOVE for relative movement the results may
+        # be inconsistent. "Relative mouse motion is subject to the effects
+        # of the mouse speed and the two-mouse threshold values. A user
+        # sets these three values with the Pointer Speed slider of the
+        # Control Panel's Mouse Properties sheet. You can obtain and set
+        # these values using the SystemParametersInfo function."
+        # https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput
+        # https://stackoverflow.com/questions/50601200/pyhon-directinput-mouse-relative-moving-act-not-as-expected
+        # We can solve this issue by just disabling Enhanced Pointer
+        # Precision and forcing Mouse speed to neutral 10.
+        # Since that is a user setting that users may want to have
+        # enabled, use a optional keyword-only argument and a
+        # state-restoring context manager to give users the choice if they
+        # want this library messing around in their Windows settings.
+        if disable_mouse_acceleration:
+            # Use a context manager to temporarily disable enhanced pointer
+            # precision
+            with _no_mouse_acceleration():
+                _send_input(input_struct)
+        else:
+            _send_input(input_struct)
+
+    else:
+        start_time: Final[float] = _time()
+        final_time: Final[float] = start_time + duration
+        path: list[tuple[int, int]] = path_function(
+            current_x, current_y, final_x, final_y
+        )
+        path_length = len(path)
         keep_looping: bool = True
+        sleep_duration: float = MINIMUM_SLEEP_IDEAL
 
         apply_duration: bool = False
         while keep_looping:
             if apply_duration:
-                _sleep(MINIMUM_SLEEP_IDEAL)  # sleep between iterations
-            apply_duration = True
+                _sleep(sleep_duration)  # sleep between iterations
+            else:
+                apply_duration = True
 
-            time_segments: int = min(
-                int((final_time - _time()) / MINIMUM_SLEEP_ACTUAL),
-                max(xOffset - current_x, yOffset - current_y),
-            )
-            if time_segments <= 1:
+            _failSafeCheck()
+
+            current_time = _time()
+            if current_time >= final_time:
                 keep_looping = False
+                segment_count = path_length - 1
+            else:
+                time_ratio = (current_time - start_time) / duration
+                if time_ratio <= 0.0:
+                    time_ratio = 0.0
+                if time_ratio >= 1.0:
+                    time_ratio = 1.0
+                path_ratio = tween(time_ratio)
+                segment_count = int(path_length * path_ratio)
+                if segment_count >= path_length:
+                    segment_count = path_length - 1
 
-            x = _add_one_step(current_x, xOffset, time_segments) - current_x
-            y = _add_one_step(current_y, yOffset, time_segments) - current_y
+            next_x, next_y = path[segment_count]
+            x = next_x - current_x
+            y = next_y - current_y
 
             if x == 0 and y == 0:
                 # no change in movement for current segment ->try again
                 continue
 
-            input_struct: _INPUT = _create_mouse_input(
+            input_struct = _create_mouse_input(
                 dx=x, dy=y, dwFlags=_MOUSEEVENTF_MOVE
             )
-            current_x += x
-            current_y += y
+            current_x = next_x
+            current_y = next_y
 
-            # When using MOUSEEVENTF_MOVE for relative movement the results may
-            # be inconsistent. "Relative mouse motion is subject to the effects
-            # of the mouse speed and the two-mouse threshold values. A user
-            # sets these three values with the Pointer Speed slider of the
-            # Control Panel's Mouse Properties sheet. You can obtain and set
-            # these values using the SystemParametersInfo function."
-            # https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput
-            # https://stackoverflow.com/questions/50601200/pyhon-directinput-mouse-relative-moving-act-not-as-expected
-            # We can solve this issue by just disabling Enhanced Pointer
-            # Precision and forcing Mouse speed to neutral 10.
-            # Since that is a user setting that users may want to have
-            # enabled, use a optional keyword-only argument and a
-            # state-restoring context manager to give users the choice if they
-            # want this library messing around in their Windows settings.
             if disable_mouse_acceleration:
                 # Use a context manager to temporarily disable enhanced pointer
                 # precision
@@ -3087,6 +3255,249 @@ def moveRel(
                     _send_input(input_struct)
             else:
                 _send_input(input_struct)
+    # --------------------------------------------------------------------------
+
+
+# ----- moveTo -----------------------------------------------------------------
+@_genericPyDirectInputChecks
+def moveTo(
+    x: int | None = None,
+    y: int | None = None,
+    duration: float = 0.0,
+    tween: Callable[[float], float] | None = None,
+    logScreenshot: bool = False,
+    _pause: bool = True,
+    relative: bool = False,
+    *,
+    virtual: bool = False,
+    path_function: PathFunction | None = None,
+    attempt_pixel_perfect: bool = False,
+    disable_mouse_acceleration: bool = False,
+) -> None:
+    """
+    Move the mouse to an absolute(*) postion indicated by the arguments of
+    `x` and `y`. The coordinates 0,0 represent the top left pixel of the
+    primary monitor.
+
+    If `duration` is floating point number greater than 0, then this function
+    will automatically split the movement into microsteps instead of moving
+    straight to the target position.
+
+    `tween` is a function that takes a floating point number between 0.0 and
+    1.0 and returns another floating point number between 0.0 and 1.0. The
+    returned number will be used to calculate the next position of the
+    mouse between the start and the end position based on the current duration.
+    The default tweening function is linear, which will move the mouse at a
+    constant speed. See the `pytweening` package for more tweening functions.
+
+    `path_function` is a function that takes the start and end coordinates of
+    the mouse movement (4 integers) and returns a list of coordinates (list of
+    tuples containting 2 integers each) that the mouse will move through.
+    The default path function is Bresenham's line algorithm, which will move
+    the mouse in a straight line.
+
+    (*) `relative` parameter decides how the movement is executed:
+
+    -> `False`: Target postion is given and absolute movement is used.
+
+    -> `True`: Calculates target offset and uses relative movement API
+    (can be inconsistent)
+
+    If `_pause` is True (default), then an automatic sleep will be performed
+    after the function finshes executing. The duration is set by the global
+    variable `PAUSE`.
+
+    Setting `virtual` to True (default: False) changes the way internal APIs
+    handle coordinates and is intended for multi monitor systems. It should be
+    pretty much unncessary even for multi monitor systems, since all the
+    necessary internal calculations beyond the border of the primay monitor
+    work without it.
+
+    The way that Windows calculates the target pixel coordinates internally
+    unfortunately leads to inaccuracies and unreachable pixels, especially
+    if the `virtual` option is used.
+
+    If you need the target position to be pixel perfect, you can try setting
+    `attempt_pixel_perfect` to True, which will use tiny relative movements
+    to correct the unreachable position.
+
+    Relative movement is influenced by mouse speed and Windows Enhanced Pointer
+    Precision, which can be temporarily disabled by setting
+    `disable_mouse_acceleration`.
+
+    ----------------------------------------------------------------------------
+    Careful! Disabling mouse acceleration settings is MAYBE thread-safe,
+    NOT multiprocessing-safe, and DEFINITELY NOT independent processses safe!
+
+    If you you start a relative movement while another is already in progress
+    than the second movement could overwrite the first setting and disable
+    Enhanced Pointer Precision and change mouse speed.
+    There are some measures in place to try to mitigate that risk, such as an
+    internal counter that only allows storing and restoring the acceleration
+    settings as long as no other movement is currently in progress.
+    Additionally, the acceleration settings can be manually saved and
+    restored with `store_mouse_acceleration_settings()` and
+    `restore_mouse_acceleration_settings()`. For your convenience, the
+    store function is automatically called during import to save your current
+    setting. You can then call the restore function at any time.
+
+    If all fails, the setting is not written permanently to your Windows
+    settings, so it should restore itself upon reboot.
+
+    Bottom line: Don't use the `disable_mouse_acceleration` argument if you use
+    this library in multiple threads / processes / programs at the same time!
+
+    ----------------------------------------------------------------------------
+
+    NOTE: `logScreenshot` is currently unsupported.
+    """
+    if relative:
+        _relative_mouse_move(
+            x=x,
+            y=y,
+            duration=duration,
+            tween=tween,
+            logScreenshot=logScreenshot,
+            relative=relative,
+            virtual=virtual,
+            path_function=path_function,
+            disable_mouse_acceleration=disable_mouse_acceleration,
+        )
+    else:
+        _absolute_mouse_move(
+            x=x,
+            y=y,
+            duration=duration,
+            tween=tween,
+            logScreenshot=logScreenshot,
+            relative=relative,
+            virtual=virtual,
+            path_function=path_function,
+            attempt_pixel_perfect=attempt_pixel_perfect,
+            disable_mouse_acceleration=disable_mouse_acceleration,
+        )
+    # --------------------------------------------------------------------------
+
+
+# ----- moveRel ----------------------------------------------------------------
+@_genericPyDirectInputChecks
+def moveRel(
+    xOffset: int | None = None,
+    yOffset: int | None = None,
+    duration: float = 0.0,
+    tween: Callable[[float], float] | None = None,
+    logScreenshot: bool = False,
+    _pause: bool = True,
+    relative: bool = False,
+    *,
+    virtual: bool = False,
+    path_function: PathFunction | None = None,
+    attempt_pixel_perfect: bool = False,
+    disable_mouse_acceleration: bool = False,
+) -> None:
+    """
+    Move the mouse a relative amount determined by `xOffset` and `yOffset`.
+
+    If `duration` is floating point number greater than 0, then this function
+    will automatically split the movement into microsteps instead of moving the
+    complete distance instantly.
+
+    `tween` is a function that takes a floating point number between 0.0 and
+    1.0 and returns another floating point number between 0.0 and 1.0. The
+    returned number will be used to calculate the next position of the
+    mouse between the start and the end position based on the current duration.
+    The default tweening function is linear, which will move the mouse at a
+    constant speed. See the `pytweening` package for more tweening functions.
+
+    `path_function` is a function that takes the start and end coordinates of
+    the mouse movement (4 integers) and returns a list of coordinates (list of
+    tuples containting 2 integers each) that the mouse will move through.
+    The default path function is Bresenham's line algorithm, which will move
+    the mouse in a straight line.
+
+    `relative` parameter decides how the movement is executed:
+
+    -> `False`: Target postion is calculated and absolute movement is used.
+
+    -> `True`: Target offset is given and relative movement API is used
+    (can be inconsistent)
+
+    The inconsistency issue can be solved by disabling Enhanced Pointer
+    Precision and set Mouse speed to 10 in Windows mouse settings. Since users
+    may not want to permanently change their input settings just for this
+    library, the `disable_mouse_acceleration` argument can be used to
+    temporarily disable Enhanced Pointer Precision and fix mouse speed at 10
+    and restore it after the mouse movement.
+
+    If `_pause` is True (default), then an automatic sleep will be performed
+    after the function finshes executing. The duration is set by the global
+    variable `PAUSE`.
+
+    Setting `virtual` to True (default: False) changes the way internal APIs
+    handle coordinates and is intended for multi monitor systems. It should be
+    pretty much unncessary even for multi monitor systems, since all the
+    necessary internal calculations beyond the border of the primay monitor
+    work without it.
+
+    The way that Windows calculates the target pixel coordinates internally
+    unfortunately leads to inaccuracies and unreachable pixels, especially
+    if the `virtual` option is used.
+
+    If you need the target position to be pixel perfect, you can try setting
+    `attempt_pixel_perfect` to True, which will use tiny relative movements
+    to correct the unreachable position.
+
+    ----------------------------------------------------------------------------
+    Careful! Disabling mouse acceleration settings is MAYBE thread-safe,
+    NOT multiprocessing-safe, and DEFINITELY NOT independent processses safe!
+
+    If you you start a relative movement while another is already in progress
+    than the second movement could overwrite the first setting and disable
+    Enhanced Pointer Precision and change mouse speed.
+    There are some measures in place to try to mitigate that risk, such as an
+    internal counter that only allows storing and restoring the acceleration
+    settings as long as no other movement is currently in progress.
+    Additionally, the acceleration settings can be manually saved and
+    restored with `store_mouse_acceleration_settings()` and
+    `restore_mouse_acceleration_settings()`. For your convinnience, the
+    store function is automatically called during import to save your current
+    setting. You can then call the restore function at any time.
+
+    If all fails, the setting is not written permanently to your Windows
+    settings, so it should restore itself upon reboot.
+
+    Bottom line: Don't use the `disable_mouse_acceleration` argument if you use
+    this library in multiple threads / processes / programs at the same time!
+
+    ----------------------------------------------------------------------------
+
+    NOTE: `logScreenshot` is are currently unsupported.
+    """
+    if relative:
+        _relative_mouse_move(
+            x=xOffset,
+            y=yOffset,
+            duration=duration,
+            tween=tween,
+            logScreenshot=logScreenshot,
+            relative=relative,
+            virtual=virtual,
+            path_function=path_function,
+            disable_mouse_acceleration=disable_mouse_acceleration,
+        )
+    else:
+        _absolute_mouse_move(
+            x=xOffset,
+            y=yOffset,
+            duration=duration,
+            tween=tween,
+            logScreenshot=logScreenshot,
+            relative=relative,
+            virtual=virtual,
+            path_function=path_function,
+            attempt_pixel_perfect=attempt_pixel_perfect,
+            disable_mouse_acceleration=disable_mouse_acceleration,
+        )
     # --------------------------------------------------------------------------
 
 
@@ -3102,7 +3513,7 @@ def dragTo(
     x: int | None = None,
     y: int | None = None,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     button: str | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
@@ -3110,6 +3521,7 @@ def dragTo(
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     attempt_pixel_perfect: bool = False,
     disable_mouse_acceleration: bool = False,
 ) -> None:
@@ -3131,7 +3543,7 @@ def dragTo(
 
     ----------------------------------------------------------------------------
 
-    NOTE: `logScreenshot`, `tween` are currently unsupported.
+    NOTE: `logScreenshot` is currently unsupported.
     """
     # TODO: bounding box check for valid position
     if button is None:
@@ -3147,6 +3559,7 @@ def dragTo(
         _pause=False,  # don't add an additional pause
         relative=relative,
         virtual=virtual,
+        path_function=path_function,
         attempt_pixel_perfect=attempt_pixel_perfect,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
@@ -3161,7 +3574,7 @@ def dragRel(
     xOffset: int | None = None,
     yOffset: int | None = None,
     duration: float = 0.0,
-    tween: None = None,
+    tween: Callable[[float], float] | None = None,
     button: str | None = None,
     logScreenshot: bool = False,
     _pause: bool = True,
@@ -3169,6 +3582,7 @@ def dragRel(
     *,
     relative: bool = False,
     virtual: bool = False,
+    path_function: PathFunction | None = None,
     disable_mouse_acceleration: bool = False,
 ) -> None:
     """
@@ -3189,7 +3603,7 @@ def dragRel(
 
     ----------------------------------------------------------------------------
 
-    NOTE: `logScreenshot`, `tween` are currently unsupported.
+    NOTE: `logScreenshot` is currently unsupported.
     """
     # TODO: bounding box check for valid position
     if button is None:
@@ -3201,9 +3615,11 @@ def dragRel(
         yOffset,
         duration=duration,
         tween=tween,
+        logScreenshot=logScreenshot,
         _pause=False,  # don't add an additional pause
-        relative=False,
+        relative=relative,
         virtual=virtual,
+        path_function=path_function,
         disable_mouse_acceleration=disable_mouse_acceleration,
     )
     if mouseDownUp:
@@ -3994,7 +4410,7 @@ def unicode_charDown(
     """
     utf16surrogates: bytes = char.encode("utf-16be")
     codes: Sequence[int] = unpack(
-        f">{len(utf16surrogates)//2}H", utf16surrogates
+        f">{len(utf16surrogates) // 2}H", utf16surrogates
     )
 
     keybdFlags: int = _KEYEVENTF_UNICODE
@@ -4034,7 +4450,7 @@ def unicode_charUp(
     """
     utf16surrogates: bytes = char.encode("utf-16be")
     codes: Sequence[int] = unpack(
-        f">{len(utf16surrogates)//2}H", utf16surrogates
+        f">{len(utf16surrogates) // 2}H", utf16surrogates
     )
 
     keybdFlags: int = _KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP

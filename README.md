@@ -10,7 +10,7 @@ This library is a fork of https://github.com/learncodebygaming/pydirectinput 1.0
 
 This package extends PyDirectInput in multiple ways. It fixes some bugs, adds the remaining missing input functions that still required using PyAutoGUI and provides additional keyword-only arguments to give more precise control over function behavior.
 
-Contrary to the upstream PyDirectInput package, this package intends to replace PyAutoGUI almost completely for basic usage, skipping more advanced options like logging screenshots and custom tweening functions. This should reduce the need to install both PyDirectInput and PyAutoGUI side-by-side and thereby keep the number of dependencies to a minimum.
+Contrary to the upstream PyDirectInput package, this package intends to replace PyAutoGUI almost completely for basic usage, skipping more advanced options like logging screenshots. This should reduce the need to install both PyDirectInput and PyAutoGUI side-by-side and thereby keep the number of dependencies to a minimum.
 
 This library is fully in-line type-annotated and passes `mypy --strict`. Unfortunately, that also means this package **only works on Python 3.7 or higher**. There are **no** plans to backport changes to older versions.
 
@@ -53,11 +53,11 @@ pydirectinput.moveTo(500, 500, duration=2) # Move mouse over 2 seconds.
 
 pydirectinput.moveTo(1000, 250, attempt_pixel_perfect=True) # Sometimes Windows will not move the mouse to the exact pixel you specify. If you set attempt_pixel_perfect to True, PyDirectInput will attempt to move the mouse to the exact pixel you specify.
 
-pydirectinput.moveRel(yOffset=-100, disable_mouse_acceleration=True) # Move mouse 100 pixels up, disable mouse acceleration for this move. Mouse acceleration is messing with your mouse movements, so the library can disable it for you and restore your own settings after the movement is finished.
+pydirectinput.moveRel(yOffset=-100, relative=True, disable_mouse_acceleration=True) # Move mouse 100 pixels up, disable mouse acceleration for this move. Mouse acceleration is messing with your mouse movements, so the library can disable it for you and restore your own settings after the movement is finished.
 
 pydirectinput.dragTo(100, 200, button='left') # Drag mouse to the x, y coordinates 100, 200 while holding down the left mouse button.
 
-pydirectinput.dragRel(0, 10) # Drag mouse 10 pixels down, that is, drag mouse relative to its current position.
+pydirectinput.dragRel(0, 10, relative=True) # Drag mouse 10 pixels down, that is, drag mouse relative to its current position.
 
 pydirectinput.scroll(10) # Scroll mouse 10 "clicks" up, that is, move the mouse wheel up.
 
@@ -164,7 +164,6 @@ pydirectinput.scancode_press(0x3B) # Press the F1 key.
 ## Missing features compared to PyAutoGUI
 
 - `logScreenshot` arguments. No screenshots will be created.
-- `tween` arguments. The tweening function is hardcoded at the moment.
 
 ___
 

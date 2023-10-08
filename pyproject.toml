@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pydirectinput_rgx"
-version = "2.0.9"
+version = "2.1.0"
 authors = [{name = "ReggX", email = "dev@reggx.eu"}]
 license = {text = "MIT"}
 description = "Python mouse and keyboard input automation for Windows using Direct Input."
@@ -30,11 +30,12 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
 ]
 requires-python = ">=3.7"
-dependencies = ["typing-extensions>=4.2.0, <5.0; python_version < '3.9'"]
+dependencies = ["typing-extensions>=4.2.0; python_version < '3.9'"]
 
 [project.readme]
 file = "README.md"

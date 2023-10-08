@@ -22,13 +22,14 @@ def mouse_return_accuracy():
     # when the mouse is moved relative, and then reversed relative again, confirm
     # that the cursor returns to the same position
     pydirectinput.moveTo(300, 300)
-    pos_start = pydirectinput.position()  # pyright: ignore[reportPrivateUsage]
+    pos_start = pydirectinput.position()
     time.sleep(1)
-    pydirectinput.move(100, 0)
+    pydirectinput.move(100, 0, relative=True, disable_mouse_acceleration=True)
     time.sleep(1)
-    pydirectinput.move(-100, 0)
-    pos_end = pydirectinput.position()  # pyright: ignore[reportPrivateUsage]
-    print(f"{pos_start} == {pos_end}? {pos_start == pos_end}")
+    pos_mid = pydirectinput.position()
+    pydirectinput.move(-100, 0, relative=True, disable_mouse_acceleration=True)
+    pos_end = pydirectinput.position()
+    print(f"{pos_start} == {pos_end}? {pos_start == pos_end} (Mid: {pos_mid}))")
 
 
 def clicks_and_typing():
@@ -53,7 +54,7 @@ def wasd_movement():
     time.sleep(0.25)
     pydirectinput.keyUp('d')
     time.sleep(1)
-    pydirectinput.move(300, None)
+    pydirectinput.move(300, None, relative=True)
 
 
 def basic_click():
