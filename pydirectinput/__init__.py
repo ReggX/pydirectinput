@@ -2891,7 +2891,7 @@ def _absolute_mouse_move(
     duration: float = 0.0,
     tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
-    relative: bool = False,
+    target_coords_relative: bool = False,
     *,
     virtual: bool = False,
     path_function: PathFunction | None = None,
@@ -2920,8 +2920,9 @@ def _absolute_mouse_move(
     The default path function is Bresenham's line algorithm, which will move
     the mouse in a straight line.
 
-    (*) If `relative` is set: Use absolute mouse movement to move the mouse
-    cursor to the current mouse position offset by arguments `x` and `y`.
+    (*) If `target_coords_relative` is set: Use absolute mouse movement to move
+    the mouse cursor to the current mouse position offset by arguments
+    `x` and `y`.
 
     If `_pause` is True (default), then an automatic sleep will be performed
     after the function finshes executing. The duration is set by the global
@@ -2981,7 +2982,7 @@ def _absolute_mouse_move(
     current_x: int = 0
     current_y: int = 0
     current_x, current_y = position()
-    if relative:
+    if target_coords_relative:
         final_x = current_x + (0 if x is None else x)
         final_y = current_y + (0 if y is None else y)
     else:
@@ -3052,7 +3053,7 @@ def _absolute_mouse_move(
             x=final_x - current_x,
             y=final_y - current_y,
             duration=0.0,
-            relative=True,
+            target_coords_relative=True,
             virtual=virtual,
             disable_mouse_acceleration=disable_mouse_acceleration,
         )
@@ -3066,14 +3067,14 @@ def _relative_mouse_move(
     duration: float = 0.0,
     tween: Callable[[float], float] | None = None,
     logScreenshot: bool = False,
-    relative: bool = True,
+    target_coords_relative: bool = True,
     *,
     virtual: bool = False,
     path_function: PathFunction | None = None,
     disable_mouse_acceleration: bool = False,
 ) -> None:
     """
-    Move the mouse a relative amount determined by `xOffset` and `yOffset`.
+    Move the mouse a relative amount determined by `x` and `y`.
 
     If `duration` is floating point number greater than 0, then this function
     will automatically split the movement into microsteps instead of moving the
@@ -3092,14 +3093,14 @@ def _relative_mouse_move(
     The default path function is Bresenham's line algorithm, which will move
     the mouse in a straight line.
 
-    `relative` parameter decides how `xOffset` and `yOffset` are interpreted:
+    `target_coords_relative` parameter decides how `x` and `y` are interpreted:
 
-    -> `False`: `xOffset` and `yOffset` are assumed to be absolute coordinates
+    -> `False`: `x` and `y` are assumed to be absolute coordinates
     and the offset to move will be calculated based on the current mouse
     position. Movement is then performed using relative mouse movements
     (can be inconsistent).
 
-    -> `True`: `xOffset` and `yOffset` are assumed to be relative coordinates
+    -> `True`: `x` and `y` are assumed to be relative coordinates
     and the mouse will be moved by that amount. Movement is then performed
     using relative mouse movements (can be inconsistent).
 
@@ -3151,110 +3152,139 @@ def _relative_mouse_move(
         tween = _linear
     if path_function is None:
         path_function = _bresenham
+    x, y = _helper_relative_move_target_coords(x, y, target_coords_relative)
+
+    if duration <= 0.0:
+        # no duration -> move mouse instantly
+        _helper_relative_mouse_move(x, y, disable_mouse_acceleration)
+        return
+
     current_x: int = 0
     current_y: int = 0
-    next_x: int = 0
-    next_y: int = 0
-    if not relative:
-        current_x, current_y = position()
-        if x is None:
-            x = current_x
-        if y is None:
-            y = current_y
-        x = x - current_x
-        y = y - current_y
-    else:
+
+    next_x: int
+    next_y: int
+
+    final_x: int = x
+    final_y: int = y
+
+    start_time: Final[float] = _time()
+    final_time: Final[float] = start_time + duration
+
+    path: list[tuple[int, int]] = path_function(
+        current_x, current_y, final_x, final_y
+    )
+    path_length: int = len(path)
+
+    keep_looping: bool = True
+    sleep_duration: float = MINIMUM_SLEEP_IDEAL
+
+    apply_duration: bool = False
+    while keep_looping:
+        if apply_duration:
+            _sleep(sleep_duration)  # sleep between iterations
+        else:
+            apply_duration = True
+
+        _failSafeCheck()
+
+        current_time: float = _time()
+        if current_time >= final_time:
+            keep_looping = False
+            segment_count: int = path_length - 1
+        else:
+            time_ratio: float = (current_time - start_time) / duration
+            if time_ratio <= 0.0:
+                time_ratio = 0.0
+            if time_ratio >= 1.0:
+                time_ratio = 1.0
+            path_ratio: float = tween(time_ratio)
+            segment_count = int(path_length * path_ratio)
+            if segment_count >= path_length:
+                segment_count = path_length - 1
+
+        next_x, next_y = path[segment_count]
+        x = next_x - current_x
+        y = next_y - current_y
+
+        if x == 0 and y == 0:
+            # no change in movement for current segment ->try again
+            continue
+
+        current_x = next_x
+        current_y = next_y
+
+        _helper_relative_mouse_move(x, y, disable_mouse_acceleration)
+    # --------------------------------------------------------------------------
+
+
+# ----- helper_relative_move_target_coords -------------------------------------
+def _helper_relative_move_target_coords(
+    x: int | None,
+    y: int | None,
+    target_coords_relative: bool
+) -> tuple[int, int]:
+    """
+    Calculate target coordinates for relative mouse movement.
+    """
+    if target_coords_relative:
         if x is None:
             x = 0
         if y is None:
             y = 0
-    current_x = 0
-    current_y = 0
-    final_x = x
-    final_y = y
-
-    if duration <= 0.0:
-        # no duration -> move mouse instantly
-        input_struct: _INPUT = _create_mouse_input(
-            dx=final_x, dy=final_y, dwFlags=_MOUSEEVENTF_MOVE
-        )
-        # When using MOUSEEVENTF_MOVE for relative movement the results may
-        # be inconsistent. "Relative mouse motion is subject to the effects
-        # of the mouse speed and the two-mouse threshold values. A user
-        # sets these three values with the Pointer Speed slider of the
-        # Control Panel's Mouse Properties sheet. You can obtain and set
-        # these values using the SystemParametersInfo function."
-        # https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput
-        # https://stackoverflow.com/questions/50601200/pyhon-directinput-mouse-relative-moving-act-not-as-expected
-        # We can solve this issue by just disabling Enhanced Pointer
-        # Precision and forcing Mouse speed to neutral 10.
-        # Since that is a user setting that users may want to have
-        # enabled, use a optional keyword-only argument and a
-        # state-restoring context manager to give users the choice if they
-        # want this library messing around in their Windows settings.
-        if disable_mouse_acceleration:
-            # Use a context manager to temporarily disable enhanced pointer
-            # precision
-            with _no_mouse_acceleration():
-                _send_input(input_struct)
-        else:
-            _send_input(input_struct)
-
     else:
-        start_time: Final[float] = _time()
-        final_time: Final[float] = start_time + duration
-        path: list[tuple[int, int]] = path_function(
-            current_x, current_y, final_x, final_y
-        )
-        path_length = len(path)
-        keep_looping: bool = True
-        sleep_duration: float = MINIMUM_SLEEP_IDEAL
+        if x is None and y is None:
+            # Prevent unnecessary API calls
+            return 0, 0
+        current_x: int
+        current_y: int
+        current_x, current_y = position()
+        if x is None:
+            x = 0
+        else:
+            x = x - current_x
+        if y is None:
+            y = 0
+        else:
+            y = y - current_y
+    return x, y
+    # --------------------------------------------------------------------------
 
-        apply_duration: bool = False
-        while keep_looping:
-            if apply_duration:
-                _sleep(sleep_duration)  # sleep between iterations
-            else:
-                apply_duration = True
 
-            _failSafeCheck()
+# ----- helper_relative_mouse_move ---------------------------------------------
+def _helper_relative_mouse_move(
+    x: int,
+    y: int,
+    disable_mouse_acceleration: bool
+) -> None:
+    """
+    When using MOUSEEVENTF_MOVE for relative movement the results may
+    be inconsistent. "Relative mouse motion is subject to the effects
+    of the mouse speed and the two-mouse threshold values. A user
+    sets these three values with the Pointer Speed slider of the
+    Control Panel's Mouse Properties sheet. You can obtain and set
+    these values using the SystemParametersInfo function."
 
-            current_time = _time()
-            if current_time >= final_time:
-                keep_looping = False
-                segment_count = path_length - 1
-            else:
-                time_ratio = (current_time - start_time) / duration
-                if time_ratio <= 0.0:
-                    time_ratio = 0.0
-                if time_ratio >= 1.0:
-                    time_ratio = 1.0
-                path_ratio = tween(time_ratio)
-                segment_count = int(path_length * path_ratio)
-                if segment_count >= path_length:
-                    segment_count = path_length - 1
+    https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput
+    https://stackoverflow.com/questions/50601200/pyhon-directinput-mouse-relative-moving-act-not-as-expected
 
-            next_x, next_y = path[segment_count]
-            x = next_x - current_x
-            y = next_y - current_y
-
-            if x == 0 and y == 0:
-                # no change in movement for current segment ->try again
-                continue
-
-            input_struct = _create_mouse_input(
-                dx=x, dy=y, dwFlags=_MOUSEEVENTF_MOVE
-            )
-            current_x = next_x
-            current_y = next_y
-
-            if disable_mouse_acceleration:
-                # Use a context manager to temporarily disable enhanced pointer
-                # precision
-                with _no_mouse_acceleration():
-                    _send_input(input_struct)
-            else:
-                _send_input(input_struct)
+    We can solve this issue by just disabling Enhanced Pointer
+    Precision and forcing Mouse speed to neutral 10.
+    Since that is a user setting that users may want to have
+    enabled, use a optional keyword-only argument and a
+    state-restoring context manager to give users the choice if they
+    want this library messing around in their Windows settings.
+    """
+    input_struct: _INPUT = _create_mouse_input(
+        dx=x, dy=y, dwFlags=_MOUSEEVENTF_MOVE
+    )
+    if disable_mouse_acceleration:
+        # Use a context manager to temporarily disable enhanced pointer
+        # precision
+        with _no_mouse_acceleration():
+            _send_input(input_struct)
+    else:
+        _send_input(input_struct)
     # --------------------------------------------------------------------------
 
 
@@ -3358,7 +3388,7 @@ def moveTo(
             duration=duration,
             tween=tween,
             logScreenshot=logScreenshot,
-            relative=relative,
+            target_coords_relative=False,
             virtual=virtual,
             path_function=path_function,
             disable_mouse_acceleration=disable_mouse_acceleration,
@@ -3370,7 +3400,7 @@ def moveTo(
             duration=duration,
             tween=tween,
             logScreenshot=logScreenshot,
-            relative=relative,
+            target_coords_relative=False,
             virtual=virtual,
             path_function=path_function,
             attempt_pixel_perfect=attempt_pixel_perfect,
@@ -3480,7 +3510,7 @@ def moveRel(
             duration=duration,
             tween=tween,
             logScreenshot=logScreenshot,
-            relative=relative,
+            target_coords_relative=True,
             virtual=virtual,
             path_function=path_function,
             disable_mouse_acceleration=disable_mouse_acceleration,
@@ -3492,7 +3522,7 @@ def moveRel(
             duration=duration,
             tween=tween,
             logScreenshot=logScreenshot,
-            relative=relative,
+            target_coords_relative=True,
             virtual=virtual,
             path_function=path_function,
             attempt_pixel_perfect=attempt_pixel_perfect,
@@ -4484,6 +4514,7 @@ def _helper_unicode_press_char(
     # Count key press as complete if key was "downed" and "upped"
     # successfully
     return bool(downed and upped)
+    # --------------------------------------------------------------------------
 
 
 # ----- unicode_press ----------------------------------------------------------
@@ -4715,7 +4746,6 @@ def unicode_hotkey(
         apply_interval = True
 
         unicode_charUp(char, _pause=False)
-    # --------------------------------------------------------------------------
     # --------------------------------------------------------------------------
 
 
