@@ -20,16 +20,18 @@ from ctypes import LibraryLoader
 from ctypes import Structure
 from ctypes import Union
 from ctypes import WinDLL
-from ctypes import c_bool
-from ctypes import c_int
-from ctypes import c_long
-from ctypes import c_short
-from ctypes import c_uint
-from ctypes import c_ulong
-from ctypes import c_ushort
-from ctypes import c_void_p
 from ctypes import pointer
 from ctypes import sizeof
+from ctypes.wintypes import BOOL
+from ctypes.wintypes import DWORD
+from ctypes.wintypes import HMONITOR
+from ctypes.wintypes import INT
+from ctypes.wintypes import LONG
+from ctypes.wintypes import LPCVOID
+from ctypes.wintypes import PULONG
+from ctypes.wintypes import UINT
+from ctypes.wintypes import ULONG
+from ctypes.wintypes import WORD
 from math import ceil
 from math import floor
 from math import log10
@@ -658,11 +660,6 @@ _MONITOR_DEFAULTTONEAREST: Final = 0x00000002  # c_ulong
 # ===== C struct redefinitions =================================================
 # ==============================================================================
 
-# ----- Pointer type to unsigned long ------------------------------------------
-_PUL_PyType: TypeAlias = "type[_POINTER_TYPE[c_ulong]]"
-_PUL: _PUL_PyType = POINTER(c_ulong)
-# ------------------------------------------------------------------------------
-
 
 # ----- MOUSEINPUT -------------------------------------------------------------
 class _MOUSEINPUT(Structure):
@@ -675,21 +672,21 @@ class _MOUSEINPUT(Structure):
     """
 
     # Python side type hinting
-    dx: int  # c_long
+    dx: int  # LONG
     """
     The absolute position of the mouse, or the amount of motion since the last
     mouse event was generated, depending on the value of the dwFlags member.
     Absolute data is specified as the x coordinate of the mouse; relative data
     is specified as the number of pixels moved.
     """
-    dy: int  # c_long
+    dy: int  # LONG
     """
     The absolute position of the mouse, or the amount of motion since the last
     mouse event was generated, depending on the value of the dwFlags member.
     Absolute data is specified as the y coordinate of the mouse; relative data
     is specified as the number of pixels moved.
     """
-    mouseData: int  # c_ulong
+    mouseData: int  # DWORD
     """
     If dwFlags contains MOUSEEVENTF_WHEEL, then mouseData specifies the amount
     of wheel movement. A positive value indicates that the wheel was rotated
@@ -710,7 +707,7 @@ class _MOUSEINPUT(Structure):
     specifies which X buttons were pressed or released. This value may be any
     combination of the following flags. (See _XBUTTON* constants)
     """
-    dwFlags: int  # c_ulong
+    dwFlags: int  # DWORD
     """
     A set of bit flags that specify various aspects of mouse motion and button
     clicks. The bits in this member can be any reasonable combination of the
@@ -727,12 +724,12 @@ class _MOUSEINPUT(Structure):
     parameter, because they both require use of the mouseData field.
     (See _MOUSEEVENTF_* constants)
     """
-    time: int  # c_ulong
+    time: int  # DWORD
     """
     The time stamp for the event, in milliseconds. If this parameter is 0, the
     system will provide its own time stamp.
     """
-    dwExtraInfo: _PUL_PyType
+    dwExtraInfo: ULONG  # ULONG_PTR
     """
     An additional value associated with the keystroke. Use the
     GetMessageExtraInfo[1] function to obtain this information.
@@ -741,12 +738,12 @@ class _MOUSEINPUT(Structure):
     """
     # ctypes side struct definition
     _fields_ = [
-        ("dx", c_long),
-        ("dy", c_long),
-        ("mouseData", c_ulong),
-        ("dwFlags", c_ulong),
-        ("time", c_ulong),
-        ("dwExtraInfo", _PUL),
+        ("dx", LONG),
+        ("dy", LONG),
+        ("mouseData", DWORD),
+        ("dwFlags", DWORD),
+        ("time", DWORD),
+        ("dwExtraInfo", PULONG),
     ]
     # --------------------------------------------------------------------------
 
@@ -762,28 +759,28 @@ class _KEYBDINPUT(Structure):
     """
 
     # Python side type hinting
-    wVk: int  # c_ushort
+    wVk: int  # WORD
     """
     A virtual-key code. The code must be a value in the range 1 to 254. If the
     dwFlags member specifies KEYEVENTF_UNICODE, wVk must be 0.
     """
-    wScan: int  # c_ushort
+    wScan: int  # WORD
     """
     A hardware scan code for the key. If dwFlags specifies KEYEVENTF_UNICODE,
     wScan specifies a Unicode character which is to be sent to the foreground
     application.
     """
-    dwFlags: int  # c_ulong
+    dwFlags: int  # DWORD
     """
     Specifies various aspects of a keystroke. This member can be certain
     combinations of the following values. (See _KEYEVENTF_* constants)
     """
-    time: int  # c_ulong
+    time: int  # DWORD
     """
     The time stamp for the event, in milliseconds. If this parameter is zero,
     the system will provide its own time stamp.
     """
-    dwExtraInfo: _PUL_PyType
+    dwExtraInfo: ULONG  # ULONG_PTR
     """
     An additional value associated with the keystroke. Use the
     GetMessageExtraInfo[1] function to obtain this information.
@@ -792,11 +789,11 @@ class _KEYBDINPUT(Structure):
     """
     # ctypes side struct definition
     _fields_ = [
-        ("wVk", c_ushort),
-        ("wScan", c_ushort),
-        ("dwFlags", c_ulong),
-        ("time", c_ulong),
-        ("dwExtraInfo", _PUL),
+        ("wVk", WORD),
+        ("wScan", WORD),
+        ("dwFlags", DWORD),
+        ("time", DWORD),
+        ("dwExtraInfo", PULONG),
     ]
     # --------------------------------------------------------------------------
 
@@ -813,14 +810,18 @@ class _HARDWAREINPUT(Structure):
     """
 
     # Python side type hinting
-    uMsg: int  # c_ulong
+    uMsg: int  # DWORD
     """The message generated by the input hardware."""
-    wParamL: int  # c_short
+    wParamL: int  # WORD
     """The low-order word of the lParam parameter for uMsg."""
-    wParamH: int  # c_ushort
+    wParamH: int  # WORD
     """The high-order word of the lParam parameter for uMsg."""
     # ctypes side struct definition
-    _fields_ = [("uMsg", c_ulong), ("wParamL", c_short), ("wParamH", c_ushort)]
+    _fields_ = [
+        ("uMsg", DWORD),
+        ("wParamL", WORD),
+        ("wParamH", WORD),
+    ]
     # --------------------------------------------------------------------------
 
 
@@ -835,12 +836,12 @@ class _POINT(Structure):
     """
 
     # Python side type hinting
-    x: int  # c_long
+    x: int  # LONG
     """The x-coordinate of the point."""
-    y: int  # c_long
+    y: int  # LONG
     """The y-coordinate of the point."""
     # ctypes side struct definition
-    _fields_ = [("x", c_long), ("y", c_long)]
+    _fields_ = [("x", LONG), ("y", LONG)]
     # --------------------------------------------------------------------------
 
 
@@ -873,7 +874,7 @@ class _INPUT(Structure):
     """
 
     # Python side type hinting
-    type: Literal[0, 1, 2]  # c_ulong
+    type: Literal[0, 1, 2]  # DWORD
     """
     The type of the input event. This member can be one of the following
     values. (See _INPUT_* constants)
@@ -887,7 +888,10 @@ class _INPUT(Structure):
     """The information about a simulated hardware event."""
     # ctypes side struct definition
     _anonymous_ = ("ii",)
-    _fields_ = [("type", c_ulong), ("ii", _INPUT_UNION)]
+    _fields_ = [
+        ("type", DWORD),
+        ("ii", _INPUT_UNION),
+    ]
     # --------------------------------------------------------------------------
 
 
@@ -905,7 +909,7 @@ def _create_mouse_input(
     time: int = 0,  # c_ulong
 ) -> _INPUT:
     """Create INPUT structure for mouse input"""
-    dwExtraInfo: c_ulong = c_ulong(0)
+    dwExtraInfo: ULONG = ULONG(0)
     input_struct: _INPUT = _INPUT(_INPUT_MOUSE)
     input_struct.mi = _MOUSEINPUT(
         dx, dy, mouseData, dwFlags, time, pointer(dwExtraInfo)
@@ -922,7 +926,7 @@ def _create_keyboard_input(
     time: int = 0,  # c_ulong
 ) -> _INPUT:
     """Create INPUT structure for keyboard input"""
-    dwExtraInfo: c_ulong = c_ulong(0)
+    dwExtraInfo: ULONG = ULONG(0)
     input_struct: _INPUT = _INPUT(_INPUT_KEYBOARD)
     input_struct.ki = _KEYBDINPUT(
         wVk, wScan, dwFlags, time, pointer(dwExtraInfo)
@@ -955,15 +959,15 @@ _user32: WinDLL = windll.user32
 
 # ----- SendInput Declaration --------------------------------------------------
 class _SendInputType(Protocol):
-    argtypes: tuple[type[c_uint], type[_POINTER_TYPE[_INPUT]], type[c_int]]
-    restype: type[c_uint]
+    argtypes: tuple[type[UINT], type[_POINTER_TYPE[_INPUT]], type[INT]]
+    restype: type[UINT]
 
     def __call__(
         self,
-        cInputs: c_uint | int,
+        cInputs: UINT | int,
         pInputs: _POINTER_TYPE[_INPUT] | _INPUT | Array[_INPUT],
-        cbSize: c_int | int,
-    ) -> int:  # c_uint
+        cbSize: INT | int,
+    ) -> int:  # UINT
         ...
 
 
@@ -1035,8 +1039,8 @@ corresponding to application launch shortcut keys that are handled by the
 shell.
 This functionality is not guaranteed to work for other types of applications.
 """
-_SendInput.argtypes = c_uint, POINTER(_INPUT), c_int
-_SendInput.restype = c_uint
+_SendInput.argtypes = UINT, POINTER(_INPUT), INT
+_SendInput.restype = UINT
 
 
 def _send_input(
@@ -1048,16 +1052,16 @@ def _send_input(
     See https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput
     """
     # prepare arguments
-    cInputs: c_uint
+    cInputs: UINT
     inputs_array: Array[_INPUT]
     if isinstance(inputs, _INPUT):
         # -> single element array
-        cInputs = c_uint(1)
+        cInputs = UINT(1)
         inputs_array = (_INPUT * 1)(inputs)
     else:
-        cInputs = c_uint(len(inputs))
+        cInputs = UINT(len(inputs))
         inputs_array = (_INPUT * len(inputs))(*inputs)
-    cbSize: c_int = c_int(sizeof(_INPUT))
+    cbSize: INT = INT(sizeof(_INPUT))
     # execute function
     # inputs_array will be automatically be referenced by pointer
     return _SendInput(cInputs, inputs_array, cbSize)
@@ -1066,16 +1070,18 @@ def _send_input(
 
 # ----- MapVirtualKeyW Declaration ---------------------------------------------
 class _MapVirtualKeyWType(Protocol):
-    argtypes: tuple[type[c_uint], type[c_uint]]
-    restype: type[c_uint]
+    argtypes: tuple[type[UINT], type[UINT]]
+    restype: type[UINT]
 
     def __call__(
-        self, uCode: c_uint | int, uMapType: c_uint | int
-    ) -> int:  # c_uint
+        self, uCode: UINT | int, uMapType: UINT | int
+    ) -> int:  # UINT
         ...
 
 
-_MapVirtualKeyW = hint_cast(_MapVirtualKeyWType, _user32.MapVirtualKeyW)
+_MapVirtualKeyW: _MapVirtualKeyWType = hint_cast(
+    _MapVirtualKeyWType, _user32.MapVirtualKeyW
+)
 """
 ----- MapVirtualKeyW function (winuser.h) -----
 
@@ -1147,8 +1153,8 @@ table of virtual key codes, see Virtual Key Codes[1].
 
 [5] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeystate
 """
-_MapVirtualKeyW.argtypes = c_uint, c_uint
-_MapVirtualKeyW.restype = c_uint
+_MapVirtualKeyW.argtypes = UINT, UINT
+_MapVirtualKeyW.restype = UINT
 
 
 def _map_virtual_key(
@@ -1166,23 +1172,25 @@ def _map_virtual_key(
 
     See https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mapvirtualkeyw
     """
-    return _MapVirtualKeyW(c_uint(uCode), c_uint(uMapType))
+    return _MapVirtualKeyW(UINT(uCode), UINT(uMapType))
     # --------------------------------------------------------------------------
 
 
 # ----- GetSystemMetrics Declaration -------------------------------------------
 class _GetSystemMetricsType(Protocol):
-    argtypes: tuple[type[c_int]]
-    restype: type[c_int]
+    argtypes: tuple[type[INT]]
+    restype: type[INT]
 
     def __call__(
         self,
-        nIndex: c_int | int,
+        nIndex: INT | int,
     ) -> int:  # c_int
         ...
 
 
-_GetSystemMetrics = hint_cast(_GetSystemMetricsType, _user32.GetSystemMetrics)
+_GetSystemMetrics: _GetSystemMetricsType = hint_cast(
+    _GetSystemMetricsType, _user32.GetSystemMetrics
+)
 """
 ----- GetSystemMetrics function (winuser.h) -----
 
@@ -1235,8 +1243,8 @@ Windows High DPI documentation[3].
 
 [3] https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
 """  # noqa (URL too long)
-_GetSystemMetrics.argtypes = (c_int,)
-_GetSystemMetrics.restype = c_int
+_GetSystemMetrics.argtypes = (INT,)
+_GetSystemMetrics.restype = INT
 
 
 def _get_system_metrics(nIndex: int) -> int:
@@ -1253,18 +1261,20 @@ def _get_system_metrics(nIndex: int) -> int:
 
 # ----- MonitorFromPoint Declaration -----------------------------------------------
 class _MonitorFromPointType(Protocol):
-    argtypes: tuple[type[_POINT], type[c_ulong]]
-    restype: type[c_void_p]  # actually a handle (HMONITOR)
+    argtypes: tuple[type[_POINT], type[DWORD]]
+    restype: type[HMONITOR]
 
     def __call__(
         self,
         pt: _POINT,
-        dwFlags: c_ulong | int,
-    ) -> int | None:  # c_ulong
+        dwFlags: DWORD | int,
+    ) -> int | None:  # HMONITOR
         ...
 
 
-_MonitorFromPoint = hint_cast(_MonitorFromPointType, _user32.MonitorFromPoint)
+_MonitorFromPoint: _MonitorFromPointType = hint_cast(
+    _MonitorFromPointType, _user32.MonitorFromPoint
+)
 """
 ----- MonitorFromPoint function (winuser.h) -----
 
@@ -1304,8 +1314,8 @@ HMONITOR handle to that display monitor.
 If the point is not contained by a display monitor, the return value depends
 on the value of dwFlags.
 """
-_MonitorFromPoint.argtypes = (_POINT, c_ulong)
-_MonitorFromPoint.restype = c_void_p  # actually a handle (HMONITOR)
+_MonitorFromPoint.argtypes = (_POINT, DWORD)
+_MonitorFromPoint.restype = HMONITOR
 
 
 def _monitor_from_point(x: int, y: int) -> int | None:
@@ -1323,15 +1333,19 @@ def _monitor_from_point(x: int, y: int) -> int | None:
 # ----- GetCursorPos Declaration -----------------------------------------------
 class _GetCursorPosType(Protocol):
     argtypes: tuple[type[_POINTER_TYPE[_POINT]]]
-    restype: type[c_bool]
+    restype: type[BOOL]
 
     def __call__(
-        self, lpPoint: _POINTER_TYPE[_POINT] | _POINT
-    ) -> bool:  # c_bool
+        self,
+        lpPoint: _POINTER_TYPE[_POINT] | _POINT,
+    ) -> bool:  # BOOL
         ...
 
 
-_GetCursorPos = hint_cast(_GetCursorPosType, _user32.GetCursorPos)
+_GetCursorPos: _GetCursorPosType = hint_cast(
+    _GetCursorPosType,
+    _user32.GetCursorPos
+)
 """
 ----- GetCursorPos function (winuser.h) -----
 
@@ -1373,7 +1387,7 @@ OpenInputDesktop to switch to that desktop.
 [2] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setthreaddesktop
 """
 _GetCursorPos.argtypes = (POINTER(_POINT),)
-_GetCursorPos.restype = c_bool
+_GetCursorPos.restype = BOOL
 
 
 def _get_cursor_pos() -> _POINT:
@@ -1391,20 +1405,20 @@ def _get_cursor_pos() -> _POINT:
 
 # ----- SystemParametersInfoW Declaration --------------------------------------
 class _SystemParametersInfoW_Type(Protocol):
-    argtypes: tuple[type[c_uint], type[c_uint], type[c_void_p], type[c_uint]]
-    restype: type[c_bool]
+    argtypes: tuple[type[UINT], type[UINT], type[LPCVOID], type[UINT]]
+    restype: type[BOOL]
 
     def __call__(
         self,
-        uiAction: c_uint | int,
-        uiParam: c_uint | int,
-        pvParam: c_void_p | Any,
-        fWinIni: c_uint | int,
-    ) -> bool:  # c_bool
+        uiAction: UINT | int,
+        uiParam: UINT | int,
+        pvParam: LPCVOID | Any,
+        fWinIni: UINT | int,
+    ) -> bool:  # BOOL
         ...
 
 
-_SystemParametersInfoW = hint_cast(
+_SystemParametersInfoW: _SystemParametersInfoW_Type = hint_cast(
     _SystemParametersInfoW_Type, _user32.SystemParametersInfoW
 )
 """
@@ -1416,8 +1430,8 @@ function can also update the user profile while setting a parameter.
 https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow
 
 """
-_SystemParametersInfoW.argtypes = c_uint, c_uint, c_void_p, c_uint
-_SystemParametersInfoW.restype = c_bool
+_SystemParametersInfoW.argtypes = UINT, UINT, LPCVOID, UINT
+_SystemParametersInfoW.restype = BOOL
 
 
 # ----- Get system settings for mouse movement ---------------------------------
@@ -1437,7 +1451,7 @@ def _get_mouse_parameters() -> tuple[int, int, int]:
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mouse_event
     """
-    pvParam: Array[c_uint] = (c_uint * 3)()
+    pvParam: Array[UINT] = (UINT * 3)()
     _SystemParametersInfoW(_SPI_GETMOUSE, 0, pointer(pvParam), 0)
     return (pvParam[0], pvParam[1], pvParam[2])
     # --------------------------------------------------------------------------
@@ -1463,7 +1477,7 @@ def _set_mouse_parameters(
 
     https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mouse_event
     """
-    pvParam: Final[Array[c_uint]] = (c_uint * 3)(
+    pvParam: Final[Array[UINT]] = (UINT * 3)(
         threshold1, threshold2, enhanced_pointer_precision
     )
     # leave last parameter as 0 to make changes non-permanent and restore
@@ -1491,7 +1505,7 @@ def _get_mouse_speed() -> int:
     value can be set by an end-user using the mouse control panel application
     or by an application using SPI_SETMOUSESPEED.
     """
-    pvParam: Array[c_uint] = (c_uint * 1)()
+    pvParam: Array[UINT] = (UINT * 1)()
     _SystemParametersInfoW(_SPI_GETMOUSESPEED, 0, pointer(pvParam), 0)
     return pvParam[0]
     # --------------------------------------------------------------------------
@@ -1512,7 +1526,7 @@ def _set_mouse_speed(mouse_speed: int) -> bool:
     1 (slowest) and 20 (fastest). A value of 10 is the default. This value is
     typically set using the mouse control panel application.
     """
-    pvParam: Final[Array[c_uint]] = (c_uint * 1)(mouse_speed)
+    pvParam: Final[Array[UINT]] = (UINT * 1)(mouse_speed)
     # leave last parameter as 0 to make changes non-permanent and restore
     # themselves upon reboot if something goes wrong and the wrong setting
     # was overwritten.
