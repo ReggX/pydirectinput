@@ -349,40 +349,6 @@ information about relative mouse motion, see the following Remarks section.
 # ------------------------------------------------------------------------------
 
 
-# ----- Scrolling distance -----------------------------------------------------
-_WHEEL_DELTA: Final = 120
-"""
-The delta was set to 120 to allow Microsoft or other vendors to build
-finer-resolution wheels (a freely-rotating wheel with no notches) to send more
-messages per rotation, but with a smaller value in each message.
-
-https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-mousewheel
-"""
-# ------------------------------------------------------------------------------
-
-
-# ----- KEYBDINPUT.dwFlags Flags ------------------------------------------------
-_KEYEVENTF_EXTENDEDKEY: Final = 0x0001  # c_ulong(0x0001)
-"""
-If specified, the scan code was preceded by a prefix byte that has the value
-0xE0 (224).
-"""
-_KEYEVENTF_KEYUP: Final = 0x0002  # c_ulong(0x0002)
-"""
-If specified, the key is being released. If not specified, the key is being
-pressed.
-"""
-_KEYEVENTF_UNICODE: Final = 0x0004  # c_ulong(0x0004)
-"""
-If specified, the system synthesizes a VK_PACKET keystroke. The wVk parameter
-must be zero. This flag can only be combined with the KEYEVENTF_KEYUP flag.
-For more information, see the Remarks section.
-"""
-_KEYEVENTF_SCANCODE: Final = 0x0008  # c_ulong(0x0008)
-"""If specified, wScan identifies the key and wVk is ignored."""
-# ------------------------------------------------------------------------------
-
-
 # ----- MOUSEINPUT Remarks -----------------------------------------------------
 """
 https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput#remarks
@@ -423,6 +389,66 @@ threshold test. It is thus possible for the system to multiply specified
 relative mouse movement along the x or y axis by up to four times.
 
 [1] https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfoa
+"""
+# ------------------------------------------------------------------------------
+
+
+# ----- Scrolling distance -----------------------------------------------------
+_WHEEL_DELTA: Final = 120
+"""
+The delta was set to 120 to allow Microsoft or other vendors to build
+finer-resolution wheels (a freely-rotating wheel with no notches) to send more
+messages per rotation, but with a smaller value in each message.
+
+https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-mousewheel
+"""
+# ------------------------------------------------------------------------------
+
+
+# ----- KEYBDINPUT.dwFlags Flags ------------------------------------------------
+_KEYEVENTF_EXTENDEDKEY: Final = 0x0001  # c_ulong(0x0001)
+"""
+If specified, the scan code was preceded by a prefix byte that has the value
+0xE0 (224).
+"""
+_KEYEVENTF_KEYUP: Final = 0x0002  # c_ulong(0x0002)
+"""
+If specified, the key is being released. If not specified, the key is being
+pressed.
+"""
+_KEYEVENTF_UNICODE: Final = 0x0004  # c_ulong(0x0004)
+"""
+If specified, the system synthesizes a VK_PACKET keystroke. The wVk parameter
+must be zero. This flag can only be combined with the KEYEVENTF_KEYUP flag.
+For more information, see the Remarks section.
+"""
+_KEYEVENTF_SCANCODE: Final = 0x0008  # c_ulong(0x0008)
+"""If specified, wScan identifies the key and wVk is ignored."""
+# ------------------------------------------------------------------------------
+
+
+# ----- KEYBDINPUT Remarks -----------------------------------------------------
+"""
+https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-keybdinput#remarks
+
+----- Remarks -----
+
+INPUT_KEYBOARD supports nonkeyboard-input methods—such as handwriting
+recognition or voice recognition—as if it were text input by using the
+KEYEVENTF_UNICODE flag. If KEYEVENTF_UNICODE is specified, SendInput sends
+a WM_KEYDOWN or WM_KEYUP message to the foreground thread's message queue with
+wParam equal to VK_PACKET. Once GetMessage or PeekMessage obtains this message,
+passing the message to TranslateMessage posts a WM_CHAR message with the
+Unicode character originally specified by wScan. This Unicode character will
+automatically be converted to the appropriate ANSI value if it is posted to
+an ANSI window.
+
+Set the KEYEVENTF_SCANCODE flag to define keyboard input in terms of the scan
+code. This is useful for simulating a physical keystroke regardless of which
+keyboard is currently being used. You can also pass the KEYEVENTF_EXTENDEDKEY
+flag if the scan code is an extended key. The virtual key value of a key can
+change depending on the current keyboard layout or what other keys were pressed,
+but the scan code will always be the same.
 """
 # ------------------------------------------------------------------------------
 
