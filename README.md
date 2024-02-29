@@ -35,41 +35,86 @@ https://pypi.org/project/pydirectinput-rgx/
 ## Example Usage
 
 ```python
+# pydirectinput-rgx uses the same package and function names as PyDirectInput,
+# so you can use the same import statement with minimal to no changes to your code.
 import pydirectinput
 
-pydirectinput.moveTo(100, 150) # Move the mouse to the x, y coordinates 100, 150.
 
-pydirectinput.click() # Click the mouse at its current location.
+# Move the mouse to the x, y coordinates 100, 150.
+pydirectinput.moveTo(100, 150)
 
-pydirectinput.click(button=pydirectinput.MOUSE_PRIMARY) # Click the mouse at its current location using the primary mouse button (will detect swapped mouse buttons and press accordingly).
 
-pydirectinput.rightClick(200, 220) # Right-click the mouse at the x, y coordinates 200, 220.
+# Click the mouse at its current location.
+pydirectinput.click()
 
-pydirectinput.moveRel(None, 10)  # Move mouse 10 pixels down, that is, move the mouse relative to its current position.
 
-pydirectinput.doubleClick() # Double click the mouse at the current location.
+# Click the mouse at its current location using the primary mouse button
+# (will detect swapped mouse buttons and press accordingly).
+pydirectinput.click(button=pydirectinput.MOUSE_PRIMARY)
 
-pydirectinput.moveTo(500, 500, duration=2) # Move mouse over 2 seconds.
 
-pydirectinput.moveTo(1000, 250, attempt_pixel_perfect=True) # Sometimes Windows will not move the mouse to the exact pixel you specify. If you set attempt_pixel_perfect to True, PyDirectInput will attempt to move the mouse to the exact pixel you specify.
+# Right-click the mouse at the x, y coordinates 200, 220.
+pydirectinput.rightClick(200, 220)
 
-pydirectinput.moveRel(yOffset=-100, relative=True, disable_mouse_acceleration=True) # Move mouse 100 pixels up, disable mouse acceleration for this move. Mouse acceleration is messing with your mouse movements, so the library can disable it for you and restore your own settings after the movement is finished.
 
-pydirectinput.dragTo(100, 200, button='left') # Drag mouse to the x, y coordinates 100, 200 while holding down the left mouse button.
+# Move mouse 10 pixels down, that is, move the mouse relative to its current position.
+pydirectinput.moveRel(None, 10)
 
-pydirectinput.dragRel(0, 10, relative=True) # Drag mouse 10 pixels down, that is, drag mouse relative to its current position.
 
-pydirectinput.scroll(10) # Scroll mouse 10 "clicks" up, that is, move the mouse wheel up.
+# Double click the mouse at the current location.
+pydirectinput.doubleClick()
 
-pydirectinput.hscroll(10) # Scroll mouse 10 "clicks" to the right, that is, move the mouse wheel to the right. Support for this scolling method is very limited in most applications.
 
-pydirectinput.keyDown('alt') # Simulate pressing dwon the Alt key.
+# Move mouse over 2 seconds.
+pydirectinput.moveTo(500, 500, duration=2)
 
-pydirectinput.keyUp('alt') # Simulate releasing the Alt key.
 
-pydirectinput.press('A', auto_shift=True) # Simulate pressing the A key, automatically holding down the Shift key if needed.
+# Sometimes Windows will not move the mouse to the exact pixel you specify.
+# If you set attempt_pixel_perfect to True, PyDirectInput will attempt to move
+# the mouse to the exact pixel you specify.
+pydirectinput.moveTo(1000, 250, attempt_pixel_perfect=True)
 
-pydirectinput.press(['a', 'b'], presses=2, interval=1.0, delay=0.5, duration=0.25) # Simulate pressing the A and B keys twice in succesion, with pauses in between:
+
+# Move mouse 100 pixels up, disable mouse acceleration for this move.
+# Mouse acceleration is messing with your mouse movements,
+# so the library can disable it for you and restore your own settings
+# after the movement is finished.
+pydirectinput.moveRel(yOffset=-100, relative=True, disable_mouse_acceleration=True)
+
+
+# Drag mouse to the x, y coordinates 100, 200
+# while holding down the left mouse button.
+pydirectinput.dragTo(100, 200, button='left')
+
+
+# Drag mouse 10 pixels down, that is, drag mouse relative to its current position.
+pydirectinput.dragRel(0, 10, relative=True)
+
+
+# Scroll mouse 10 "clicks" up, that is, move the mouse wheel up.
+pydirectinput.scroll(10)
+
+
+# Scroll mouse 10 "clicks" to the right, that is, move the mouse wheel to the
+# right. Support for this scolling method is very limited in most applications.
+pydirectinput.hscroll(10)
+
+
+# Simulate pressing dwon the Alt key.
+pydirectinput.keyDown('alt')
+
+
+# Simulate releasing the Alt key.
+pydirectinput.keyUp('alt')
+
+
+# Simulate pressing the A key,
+# automatically holding down the Shift key if needed.
+pydirectinput.press('A', auto_shift=True)
+
+
+# Simulate pressing the A and B keys twice in succesion, with pauses in between:
+pydirectinput.press(['a', 'b'], presses=2, interval=1.0, delay=0.5, duration=0.25)
 # A down
 # 0.25 seconds pause (duration of key press)
 # A up
@@ -86,30 +131,45 @@ pydirectinput.press(['a', 'b'], presses=2, interval=1.0, delay=0.5, duration=0.2
 # 0.25 seconds pause
 # B up
 
+
+# Simulate pressing the Alt-Tab hotkey combination.
 try:
-  with pydirectinput.hold('alt', raise_on_failure=True):
-      pydirectinput.press('tab') # Simulate pressing the Alt-Tab hotkey combination.
+    with pydirectinput.hold('alt', raise_on_failure=True):
+        pydirectinput.press('tab')
 except pydirectinput.PriorInputFailedException:
-  print('Prior input failed, so this input was not sent.')
+    print('Prior input failed, so this input was not sent.')
 
-pydirectinput.hotkey('ctrl', 'v') # Simulate pressing the Ctrl-V hotkey combination.
 
-pydirectinput.typewrite('Hello world!', interval=0.25) # Simulate typing the string 'Hello world!' with a 0.25 second pause in between each key press.
+# Simulate pressing the Ctrl-V hotkey combination.
+pydirectinput.hotkey('ctrl', 'v')
 
-# By default, pydirectinput have an artifical pause after every action to make input look less robotic.
+
+# Simulate typing the string 'Hello world!' with a 0.25 second pause in between each key press.
+pydirectinput.typewrite('Hello world!', interval=0.25)
+
+
+# By default, pydirectinput uses an artifical pause
+# after every action to make input look less robotic.
 # You can disable the pause on a per-function basis by passing in _pause=False, e.g
 pydirectinput.moveTo(100, 150, _pause=False)
 
-# The duration of the automatic pause is determinded by the PAUSE constant, which is 0.01 seconds by default, but can be adjusted to other values if desired.
+
+# The duration of the automatic pause is determinded by the PAUSE constant,
+# which is 0.01 seconds by default, but can be adjusted to other values if desired.
 pydirectinput.PAUSE = 0.1 # Set the pause to 0.1 seconds.
+
 
 # You can also disable the pause globally by setting the PAUSE constant to None.
 pydirectinput.PAUSE = None # Disable the pause entirely.
 
-# You can also unicode_* variants of the keyboard functions to type unicode characters. Support may be limited in some applications.
+
+# You can also unicode_* variants of the keyboard functions to type unicode characters.
+# Support may be limited in some applications.
 pydirectinput.unicode_press('👍')
 
-# On the other hand, if you already know the scancode of the key you want to press, you can use the scancode_* variants of the keyboard functions.
+
+# On the other hand, if you already know the scancode of the key you want to press,
+# you can use the scancode_* variants of the keyboard functions.
 pydirectinput.scancode_press(0x3B) # Press the F1 key.
 ```
 
