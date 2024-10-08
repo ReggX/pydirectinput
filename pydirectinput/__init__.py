@@ -2007,14 +2007,19 @@ def _bresenham(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
 
         The result will contain both the start and the end point.
         """
-        dx = x1 - x0
-        dy = y1 - y0
+        dx: int = x1 - x0
+        dy: int = y1 - y0
 
-        xsign = 1 if dx > 0 else -1
-        ysign = 1 if dy > 0 else -1
+        xsign: Literal[1, -1] = 1 if dx > 0 else -1
+        ysign: Literal[1, -1] = 1 if dy > 0 else -1
 
         dx = abs(dx)
         dy = abs(dy)
+
+        xx: Literal[1, 0, -1]
+        xy: Literal[1, 0, -1]
+        yx: Literal[1, 0, -1]
+        yy: Literal[1, 0, -1]
 
         if dx > dy:
             xx, xy, yx, yy = xsign, 0, 0, ysign
@@ -2022,7 +2027,7 @@ def _bresenham(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
             dx, dy = dy, dx
             xx, xy, yx, yy = 0, ysign, xsign, 0
 
-        d = 2 * dy - dx
+        d: int = 2 * dy - dx
         y = 0
         for x in range(dx + 1):
             yield x0 + x * xx + y * yx, y0 + x * xy + y * yy
